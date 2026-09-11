@@ -1,0 +1,12 @@
+{
+  "python.defaultInterpreterPath": "C:\\Program Files\\Python311\\python.exe",
+  "python.analysis.extraPaths": [
+    "C:\\Program Files\\Python311\\Lib\\site-packages",
+    "C:\\Users\\User\\AppData\\Roaming\\Python\\Python311\\site-packages",
+    "${workspaceFolder}/quantumshield-ai/backend",
+    "${workspaceFolder}/quantumshield-ai/security-lab"
+  ],
+  "css.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore",
+  "less.lint.unknownAtRules": "ignore"
+}

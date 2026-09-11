@@ -1,0 +1,13 @@
+{
+  "include": [
+    "."
+  ],
+  "extraPaths": [
+    ".",
+    "C:\\Program Files\\Python311\\Lib\\site-packages",
+    "C:\\Users\\User\\AppData\\Roaming\\Python\\Python311\\site-packages"
+  ],
+  "pythonPath": "C:\\Program Files\\Python311\\python.exe",
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic"
+}
