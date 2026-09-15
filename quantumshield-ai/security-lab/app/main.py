@@ -178,7 +178,106 @@ def token_required(f):
         return f(*args, **kwargs)
     return decorated
 
-# ─── Health ──────────────────────────────────────────────────────────────────
+# ─── Root & Health ───────────────────────────────────────────────────────────
+
+@app.route("/")
+def index():
+    return """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>QuantumShield AI — Security Lab Target</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #0b0f19; color: #f1f5f9; font-family: ui-sans-serif, system-ui, sans-serif; }
+    .card { background-color: #111827; border: 1px solid #1e293b; border-radius: 0.75rem; }
+    .badge { padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; font-family: monospace; }
+  </style>
+</head>
+<body class="p-6 md:p-10 max-w-6xl mx-auto space-y-6">
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-6">
+    <div>
+      <div class="flex items-center gap-3">
+        <div class="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></div>
+        <h1 class="text-2xl font-bold tracking-tight text-white">QuantumShield AI — Vulnerable Lab Target</h1>
+      </div>
+      <p class="text-slate-400 text-sm mt-1">
+        Authorized target application seeded with benchmark CVEs and cryptographic assets for autonomous security testing.
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">LAB ENVIRONMENT ACTIVE</span>
+      <span class="badge bg-purple-500/20 text-purple-400 border border-purple-500/30">PORT 8080</span>
+    </div>
+  </header>
+
+  <!-- Authorization Notice -->
+  <div class="card p-4 border-red-500/30 bg-red-500/5 flex items-start gap-3 text-xs text-red-300">
+    <div class="text-red-400 text-base font-bold">⚠️</div>
+    <div>
+      <strong class="text-red-200">Authorized Testing Boundary:</strong>
+      This application is intentionally vulnerable and intended exclusively for demonstration and automated regression testing with QuantumShield AI. Contains mock test data only.
+    </div>
+  </div>
+
+  <!-- Test Accounts -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="card p-4 space-y-2">
+      <div class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Test Account A (User)</div>
+      <div class="font-mono text-sm text-cyan-400">alice / Alice@123</div>
+      <div class="text-xs text-slate-400">Regular tenant with orders and private notes (IDOR test target).</div>
+    </div>
+    <div class="card p-4 space-y-2">
+      <div class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Test Account B (User)</div>
+      <div class="font-mono text-sm text-cyan-400">bob / Bob@123</div>
+      <div class="text-xs text-slate-400">Victim tenant for cross-account object isolation tests.</div>
+    </div>
+    <div class="card p-4 space-y-2">
+      <div class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Test Account C (Admin)</div>
+      <div class="font-mono text-sm text-amber-400">admin / Admin@123</div>
+      <div class="text-xs text-slate-400">Privileged administrator account for privilege escalation tests.</div>
+    </div>
+  </div>
+
+  <!-- Quick API Endpoints -->
+  <div class="card p-6 space-y-4">
+    <h2 class="text-lg font-bold text-white">Live Lab API Surface & Endpoints</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-mono">
+      <a href="/api/products" target="_blank" class="p-3 bg-slate-900 hover:bg-slate-800 rounded-lg flex justify-between items-center border border-slate-800 transition-colors">
+        <span class="text-emerald-400">GET /api/products</span>
+        <span class="text-slate-400 text-[11px]">SQL Injection Endpoint</span>
+      </a>
+      <a href="/search?q=test" target="_blank" class="p-3 bg-slate-900 hover:bg-slate-800 rounded-lg flex justify-between items-center border border-slate-800 transition-colors">
+        <span class="text-yellow-400">GET /search?q=...</span>
+        <span class="text-slate-400 text-[11px]">Reflected XSS Endpoint</span>
+      </a>
+      <a href="/api/crypto/config" target="_blank" class="p-3 bg-slate-900 hover:bg-slate-800 rounded-lg flex justify-between items-center border border-slate-800 transition-colors">
+        <span class="text-purple-400">GET /api/crypto/config</span>
+        <span class="text-slate-400 text-[11px]">Quantum Crypto Inventory</span>
+      </a>
+      <a href="/api/known-vulnerabilities" target="_blank" class="p-3 bg-slate-900 hover:bg-slate-800 rounded-lg flex justify-between items-center border border-slate-800 transition-colors">
+        <span class="text-cyan-400">GET /api/known-vulnerabilities</span>
+        <span class="text-slate-400 text-[11px]">Benchmark Vulnerability Matrix</span>
+      </a>
+      <a href="/api/sitemap" target="_blank" class="p-3 bg-slate-900 hover:bg-slate-800 rounded-lg flex justify-between items-center border border-slate-800 transition-colors">
+        <span class="text-blue-400">GET /api/sitemap</span>
+        <span class="text-slate-400 text-[11px]">Application Sitemap Discovery</span>
+      </a>
+      <a href="/api/info" target="_blank" class="p-3 bg-slate-900 hover:bg-slate-800 rounded-lg flex justify-between items-center border border-slate-800 transition-colors">
+        <span class="text-slate-300">GET /api/info</span>
+        <span class="text-slate-400 text-[11px]">Target Metadata</span>
+      </a>
+    </div>
+  </div>
+
+  <footer class="text-center text-xs text-slate-400 pt-4">
+    QuantumShield AI &copy; 2026 — Autonomous Security & Post-Quantum Cryptographic Platform
+  </footer>
+</body>
+</html>
+    """
 
 @app.route("/health")
 def health():
