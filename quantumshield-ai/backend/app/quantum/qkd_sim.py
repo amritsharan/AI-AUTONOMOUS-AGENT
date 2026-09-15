@@ -133,7 +133,7 @@ def simulate_bb84(
         )
 
     # 5. Parameter Estimation: Sample half of sifted key to test QBER
-    sample_size = max(4, sifted_len // 3)
+    sample_size = max(16, min(sifted_len, sifted_len // 2))
     sample_indices = set(random.sample(range(sifted_len), sample_size))
 
     errors = 0

@@ -151,27 +151,33 @@ async def get_json_report(scan_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.get("/{scan_id}/pdf")
 async def get_pdf_report(scan_id: str, db: AsyncSession = Depends(get_db)):
-    """Generate a PDF report. Returns JSON with PDF generation note if WeasyPrint unavailable."""
+    """Generate a PDF report using ReportLab."""
     # Get JSON report data
     json_resp = await get_json_report(scan_id, db)
     data = json.loads(json_resp.body)
 
     try:
-        from weasyprint import HTML
-        html_content = _generate_html_report(data)
-        pdf_bytes = HTML(string=html_content).write_pdf()
+        from app.services.pdf_generator import generate_scan_pdf_report
+        pdf_bytes = generate_scan_pdf_report(data)
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
             headers={"Content-Disposition": f"attachment; filename=quantumshield-report-{scan_id[:8]}.pdf"}
         )
-    except ImportError:
-        # WeasyPrint not available — return JSON with notice
-        data["_pdf_notice"] = "PDF generation requires WeasyPrint. Install it or use the JSON report."
-        return JSONResponse(content=data)
     except Exception as e:
-        data["_pdf_error"] = str(e)
-        return JSONResponse(content=data)
+        # Fallback to weasyprint or error handling
+        try:
+            from weasyprint import HTML
+            html_content = _generate_html_report(data)
+            pdf_bytes = HTML(string=html_content).write_pdf()
+            return Response(
+                content=pdf_bytes,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"attachment; filename=quantumshield-report-{scan_id[:8]}.pdf"}
+            )
+        except Exception:
+            data["_pdf_error"] = str(e)
+            return JSONResponse(content=data)
 
 
 def _generate_html_report(data: dict) -> str:
