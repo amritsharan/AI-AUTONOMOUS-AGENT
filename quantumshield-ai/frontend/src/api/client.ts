@@ -38,6 +38,8 @@ export const scansApi = {
   getFindings: (id: string) => api.get(`/api/scans/${id}/findings`).then(r => r.data),
   getCrypto: (id: string) => api.get(`/api/scans/${id}/crypto`).then(r => r.data),
   getQuantum: (id: string) => api.get(`/api/scans/${id}/quantum`).then(r => r.data),
+  getAttackGraph: (id: string) => api.get(`/api/scans/${id}/attack-graph`).then(r => r.data),
+  getDiff: (id: string) => api.get(`/api/scans/${id}/diff`).then(r => r.data),
   cancel: (id: string) => api.post(`/api/scans/${id}/cancel`).then(r => r.data),
 }
 
@@ -85,6 +87,14 @@ export const quantumApi = {
     api.post('/api/quantum/qkd-bb84', { num_photons: numPhotons, eve_present: evePresent, eve_intercept_prob: eveInterceptProb, channel_noise: channelNoise }).then(r => r.data),
   qkdE91: (numPairs: number = 200, evePresent: boolean = false) =>
     api.post('/api/quantum/qkd-e91', { num_pairs: numPairs, eve_present: evePresent }).then(r => r.data),
+  assessHybridTls: (targetUrl: string, customPort?: number) =>
+    api.post('/api/quantum/hybrid-tls', { target_url: targetUrl, custom_port: customPort }).then(r => r.data),
+  exportCycloneDxCbom: (data?: any) =>
+    api.post('/api/quantum/cbom/cyclonedx', data || {}).then(r => r.data),
+  exportSpdxCbom: (data?: any) =>
+    api.post('/api/quantum/cbom/spdx', data || {}).then(r => r.data),
+  exportJsonCbom: (data?: any) =>
+    api.post('/api/quantum/cbom/json', data || {}).then(r => r.data),
 }
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────

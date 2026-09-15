@@ -214,3 +214,70 @@ async def cancel_scan_endpoint(scan_id: str, db: AsyncSession = Depends(get_db))
         await db.commit()
         return {"message": "Scan cancelled"}
     return {"message": "Scan was not running"}
+
+
+@router.get("/{scan_id}/attack-graph")
+async def get_scan_attack_graph(scan_id: str, db: AsyncSession = Depends(get_db)):
+    """Generate the interactive attack surface & dependency graph."""
+    from app.services.attack_graph import generate_attack_graph
+    from app.database.models import Endpoint
+
+    scan_res = await db.execute(select(Scan).where(Scan.id == scan_id))
+    scan = scan_res.scalar_one_or_none()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    target_res = await db.execute(select(Target).where(Target.id == scan.target_id))
+    target = target_res.scalar_one_or_none()
+
+    findings_res = await db.execute(select(Finding).where(Finding.scan_id == scan_id))
+    findings = findings_res.scalars().all()
+
+    crypto_res = await db.execute(select(CryptoAsset).where(CryptoAsset.scan_id == scan_id))
+    crypto_assets = crypto_res.scalars().all()
+
+    endpoints_res = await db.execute(select(Endpoint).where(Endpoint.scan_id == scan_id))
+    endpoints = endpoints_res.scalars().all()
+
+    graph = generate_attack_graph(
+        target_name=target.name if target else scan.name,
+        target_url=target.url if target else "http://target.local",
+        endpoints=endpoints,
+        findings=findings,
+        crypto_assets=crypto_assets,
+    )
+    return graph
+
+
+@router.get("/{scan_id}/diff")
+async def get_scan_diff_auto(scan_id: str, db: AsyncSession = Depends(get_db)):
+    """Compute scan diff / regression against the immediate previous scan on the same target."""
+    from app.services.scan_diff import compute_scan_diff
+
+    scan_res = await db.execute(select(Scan).where(Scan.id == scan_id))
+    current_scan = scan_res.scalar_one_or_none()
+    if not current_scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    # Find previous scan on same target
+    prev_res = await db.execute(
+        select(Scan)
+        .where(Scan.target_id == current_scan.target_id, Scan.id != scan_id, Scan.created_at < current_scan.created_at)
+        .order_by(Scan.created_at.desc())
+        .limit(1)
+    )
+    prev_scan = prev_res.scalar_one_or_none()
+
+    curr_findings_res = await db.execute(select(Finding).where(Finding.scan_id == scan_id))
+    curr_findings = curr_findings_res.scalars().all()
+
+    prev_findings = []
+    if prev_scan:
+        prev_f_res = await db.execute(select(Finding).where(Finding.scan_id == prev_scan.id))
+        prev_findings = prev_f_res.scalars().all()
+
+    diff_data = compute_scan_diff(curr_findings, prev_findings)
+    diff_data["previous_scan_id"] = prev_scan.id if prev_scan else None
+    diff_data["current_scan_id"] = scan_id
+    return diff_data
+

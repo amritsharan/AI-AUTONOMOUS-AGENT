@@ -31,17 +31,19 @@ Below is the verified master task breakdown for QuantumShield AI. Every mileston
 - [x] `backend/requirements.txt` / dependencies (FastAPI, Qiskit, Qiskit-IBM-Runtime, SQLAlchemy, aiosqlite, pydantic)
 - [x] `backend/app/main.py` (FastAPI app factory, CORS, exception handlers, router aggregation)
 - [x] `backend/app/database/session.py` (Async SQLAlchemy session with automatic SQLite local fallback)
-- [x] `backend/app/database/models/` (Data models):
+- [x] `backend/app/database/models.py` (Data models):
   - [x] `Target` (Authorized target metadata, policy status)
   - [x] `Scan` (Execution telemetry, phase tracking, timing)
   - [x] `Finding` (Vulnerabilities, CVSS severity, CWE, reproduction data)
   - [x] `Evidence` (HTTP request/response payloads, proof of exploit)
-  - [x] `PatchRecord` (Generated diffs, validation status, rescan verdict)
+  - [x] `CryptoAsset` (Cryptographic asset inventory & quantum attack taxonomy)
+  - [x] `Endpoint` (Discovered attack surface routes)
+  - [x] `Remediation` & `RegressionTest` (Generated diffs, validation status, rescan verdict)
 - [x] `backend/app/api/` (API Routers):
-  - [x] `/api/v1/targets` (Target management & authorization)
-  - [x] `/api/v1/scans` (Scan trigger, status, findings, patch actions)
-  - [x] `/api/v1/quantum` (QPU execution, Simon, QPE, QKD, Shor, Grover, PQC Shield)
-  - [x] `/api/v1/threats` (Threat intelligence feed)
+  - [x] `/api/targets/` (Target management & authorization)
+  - [x] `/api/scans/` (Scan trigger, status, findings, patch actions, diffs, attack graph)
+  - [x] `/api/quantum/` (QPU execution, Simon, QPE, QKD, Shor, Grover, PQC Shield, Hybrid TLS, CBOM)
+  - [x] `/api/dashboard/` (Security posture metrics & threat intelligence)
 - [x] Database migrations & schema initialization (automatic async table creation)
 
 ---
@@ -60,6 +62,9 @@ Below is the verified master task breakdown for QuantumShield AI. Every mileston
 - [x] `backend/app/classical/authz_tests.py` (Broken Access Control & IDOR testing)
 - [x] `backend/app/classical/injection_tests.py` (SQLi, OS Command Injection, XSS payloads)
 - [x] `backend/app/classical/config_tests.py` (Security header auditing, CORS misconfigurations, secret leakage)
+- [x] `backend/app/classical/api_security.py` (OpenAPI/Swagger schema discovery, mass assignment, GraphQL introspection & query depth auditing)
+- [x] `backend/app/classical/jwt_security.py` (JWT `alg: none` bypass, weak HMAC secret cracking, missing expiration/audience validation)
+- [x] `backend/app/classical/websocket_security.py` (Cross-Site WebSocket Hijacking - CSWSH, unauthenticated WS handshakes, transport security)
 
 ---
 
@@ -71,15 +76,24 @@ Below is the verified master task breakdown for QuantumShield AI. Every mileston
   - [x] Generates concrete code patches and unified diffs
   - [x] Applies patches to source repositories
 - [x] Regression Rescanning (automatically reruns targeted tests to verify vulnerability elimination)
+- [x] `backend/app/services/scan_diff.py` (Scan Diff & Regression tracking: `+ new`, `- fixed`, `= persistent`, severity shifts)
 
 ---
 
 ## 🟢 Phase 7: Quantum Security & QPU Engine
 - [x] `backend/app/quantum/quantum_hardware.py`:
-  - [x] Real IBM Quantum Hardware integration via `SamplerV2` (`qiskit-ibm-runtime`)
-  - [x] Real QPU telemetry (qubit counts, basis gates, error rates)
+  - [x] Dynamic IBM Quantum QPU discovery via `QiskitRuntimeService.backends()` (dynamic querying of qubits, queue length, basis gates)
+  - [x] Real QPU execution via `SamplerV2` (`qiskit-ibm-runtime`)
   - [x] 3-tier comparative benchmark: **Ideal Simulation vs Noisy Simulation vs Real QPU**
-  - [x] Quantum threat interpretation for classical cryptosystems
+  - [x] Scientifically grounded threat framing: Demonstrative integer factorization (N=15/21/35) illustrating quantum phase-estimation/period-finding principles against future CRQCs
+- [x] `backend/app/quantum/hybrid_tls.py`:
+  - [x] **X25519 + ML-KEM-768** / Kyber Hybrid TLS assessment
+  - [x] Harvest-Now-Decrypt-Later (HNDL) exposure scoring
+  - [x] TLS 1.3 quantum-safe key exchange group evaluation
+- [x] `backend/app/quantum/cbom_export.py`:
+  - [x] **CycloneDX v1.6 CBOM** (JSON with `cryptoProperties`, `algorithmProperties`, `nistQuantumSecurityLevel`)
+  - [x] **SPDX 3.0 Cryptography Profile** (JSON-LD)
+  - [x] Structured JSON downloadable report
 - [x] `backend/app/quantum/simon_demo.py`:
   - [x] Simon's algorithm for exponential period finding over $\mathbb{F}_2^n$
   - [x] Classical Gaussian elimination post-processing
@@ -101,6 +115,7 @@ Below is the verified master task breakdown for QuantumShield AI. Every mileston
 - [x] `backend/app/agents/orchestrator.py`:
   - [x] Closed-loop autonomous security agent
   - [x] Complete workflow: **Recon → Policy Gate → Scan → Verify → AI Fix Generation → Rescan Verification**
+  - [x] Integrated Classical (OWASP, OpenAPI, GraphQL, JWT, WebSockets) + Quantum analysis
   - [x] Safety guards: Non-destructive verification and scope enforcement
 - [x] `backend/app/agents/llm_provider.py` (Multi-provider LLM connector: Gemini, OpenAI, Claude, Local fallback)
 
@@ -114,34 +129,38 @@ Below is the verified master task breakdown for QuantumShield AI. Every mileston
 
 ## 🟢 Phase 10: Frontend Web Application
 - [x] Vite + React + TypeScript + Tailwind CSS
+- [x] `backend/app/services/attack_graph.py` (Interactive attack surface & dependency graph generator)
 - [x] **Pages & Views**:
   - [x] **Dashboard** (`/`): Metrics overview, active scans, vulnerability distribution, quantum readiness score
-  - [x] **Autonomous Scans & Detail** (`/scans`, `/scans/:id`): Live terminal log, findings breakdown, one-click patch application, rescan verification
+  - [x] **Autonomous Scans & Detail** (`/scans`, `/scans/:id`): Live terminal log, findings breakdown, one-click patch application, rescan verification, attack graph, scan diff
   - [x] **Targets Manager** (`/targets`): Add/manage authorized lab and production targets
-  - [x] **Quantum Center** (`/quantum`): 9 interactive tabs:
-    - 1. Real IBM Hardware Lab (QPU vs Noisy vs Ideal)
-    - 2. Simon's Algorithm Lab
-    - 3. Quantum Phase Estimation (QPE)
-    - 4. Quantum Key Distribution (BB84 / E91)
-    - 5. Post-Quantum Cryptography (PQC) Migration Shield
-    - 6. Shor's Factorization Lab
-    - 7. Grover's Key Search Lab
-    - 8. NIST Standards Matrix
-    - 9. Quantum Threat DB
+  - [x] **Quantum Center** (`/quantum`): Interactive tabs:
+    - 1. Real IBM Hardware Lab (Dynamic QPU vs Noisy vs Ideal)
+    - 2. Hybrid PQC TLS Analyzer (X25519 + ML-KEM-768)
+    - 3. CBOM Exporters (CycloneDX v1.6 & SPDX 3.0)
+    - 4. Simon's Algorithm Lab
+    - 5. Quantum Phase Estimation (QPE)
+    - 6. Quantum Key Distribution (BB84 / E91)
+    - 7. Post-Quantum Cryptography (PQC) Migration Shield
+    - 8. Shor's Factorization Lab
+    - 9. Grover's Key Search Lab
+    - 10. NIST Standards Matrix
+    - 11. Quantum Threat DB
   - [x] **Threat Intelligence** (`/threats`): Emerging CVE and quantum threat feeds
   - [x] **Settings** (`/settings`): IBM Quantum API token, LLM keys, policy boundaries
 
 ---
 
 ## 🟢 Phase 11: Reports & Audit Trails
-- [x] Structured JSON audit export
+- [x] Structured CycloneDX v1.6, SPDX 3.0, and JSON audit export
 - [x] Executive summary generation with CVSS and Quantum Vulnerability Index (QVI)
 - [x] Remediation history & patch diff audit trail
 
 ---
 
 ## 🟢 Phase 12: Automated Test Suites
-- [x] **33 of 33 tests passing** via `pytest tests/ -v`:
+- [x] **39 of 39 tests passing** via `python -m pytest tests/ -v`:
+  - [x] `tests/test_advanced_features.py` (Hybrid TLS, CycloneDX & SPDX CBOM, JWT security, Scan diff, Attack graph)
   - [x] `tests/test_quantum_algorithms.py` (Simon, QPE, QKD, Shor, Grover, PQC)
   - [x] `tests/test_quantum_hardware.py` (Hardware profiles, noisy simulation, benchmark execution)
   - [x] `tests/test_policy.py` (Scope validation & authorization boundaries)

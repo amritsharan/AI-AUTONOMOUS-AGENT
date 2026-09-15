@@ -88,13 +88,25 @@ async def start_tunnel():
             ngrok_mod.set_auth_token(_auth_token)
 
         try:
-            tunnel = ngrok_mod.connect(LAB_PORT, proto="http", bind_tls=True)
+            # Modern pyngrok connect - specify port/addr and protocol
+            tunnel = ngrok_mod.connect(LAB_PORT, "http")
             _tunnel = tunnel
-            _public_url = tunnel.public_url
+            raw_url = getattr(tunnel, "public_url", None)
+            
+            if not raw_url or not isinstance(raw_url, str):
+                raise ValueError(
+                    "ngrok failed to provide a public URL. Ensure you have set a valid ngrok auth token via /api/ngrok/set-token."
+                )
+
             # Ensure HTTPS URL
-            if _public_url.startswith("http://"):
-                _public_url = _public_url.replace("http://", "https://", 1)
+            if raw_url.startswith("http://"):
+                _public_url = raw_url.replace("http://", "https://", 1)
+            else:
+                _public_url = raw_url
+
         except Exception as exc:
+            _tunnel = None
+            _public_url = None
             raise HTTPException(status_code=500, detail=f"ngrok error: {exc}")
 
     return NgrokStatus(running=True, public_url=_public_url, local_port=LAB_PORT, region="auto")
@@ -106,13 +118,16 @@ async def stop_tunnel():
     global _tunnel, _public_url
 
     with _tunnel_lock:
-        if not _tunnel:
+        if not _tunnel and not _public_url:
             return {"status": "no tunnel running"}
         ngrok_mod, _ = _try_import_pyngrok()
-        try:
-            ngrok_mod.disconnect(_tunnel.public_url)
-        except Exception:
-            pass
+        
+        target_url = getattr(_tunnel, "public_url", None) or _public_url
+        if target_url and isinstance(target_url, str):
+            try:
+                ngrok_mod.disconnect(target_url)
+            except Exception:
+                pass
         try:
             ngrok_mod.kill()
         except Exception:

@@ -20,6 +20,10 @@ from app.classical.auth_tests import run_auth_tests
 from app.classical.authz_tests import run_authz_tests
 from app.classical.injection_tests import run_injection_tests
 from app.classical.config_tests import run_config_tests
+from app.classical.api_security import audit_api_security
+from app.classical.jwt_security import audit_jwt_security
+from app.classical.websocket_security import audit_websocket_security
+from app.quantum.hybrid_tls import assess_hybrid_pqc_tls
 from app.quantum.crypto_discovery import run_crypto_discovery
 from app.quantum.shor_demo import assess_shor_threat
 from app.quantum.grover_demo import assess_grover_threat
@@ -170,6 +174,9 @@ class ScanOrchestrator:
                     self._run_authz_module(scan, scope, target_url),
                     self._run_injection_module(scan, scope, target_url),
                     self._run_config_module(scan, scope, target_url),
+                    self._run_api_security_module(scan, scope, target_url),
+                    self._run_jwt_module(scan, scope, target_url),
+                    self._run_websocket_module(scan, scope, target_url),
                 ])
             if scan.scan_type in ("quantum", "full"):
                 tasks.append(self._run_quantum_module(scan, scope, target_url))
@@ -377,6 +384,73 @@ class ScanOrchestrator:
             ]}
         except Exception as e:
             await self.emit(scan.id, "module_error", f"Config tests failed: {e}", state="EXECUTE")
+            return {"findings": []}
+
+    async def _run_api_security_module(self, scan: Scan, scope: ScopeConfig, target_url: str) -> dict:
+        """Run OpenAPI and GraphQL security audits."""
+        await self.emit(scan.id, "module_start", "Starting OpenAPI & GraphQL security audit.",
+                       agent="APISecurityEngine", tool="api_security_audit", target=target_url, state="EXECUTE")
+        scan.total_tests = (scan.total_tests or 0) + 4
+        try:
+            async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
+                raw_findings = await audit_api_security(client, target_url)
+            return {"findings": [
+                {
+                    "status": "SUSPICIOUS", "confidence": 0.85,
+                    "title": f.get("title"), "category": f.get("type", "API_SECURITY"),
+                    "severity": f.get("severity", "MEDIUM"), "endpoint": f.get("endpoint", "/api"),
+                    "description": f.get("description"), "evidence": f.get("evidence"),
+                    "finding_type": "CLASSICAL",
+                }
+                for f in raw_findings
+            ]}
+        except Exception as e:
+            await self.emit(scan.id, "module_error", f"API security tests failed: {e}", state="EXECUTE")
+            return {"findings": []}
+
+    async def _run_jwt_module(self, scan: Scan, scope: ScopeConfig, target_url: str) -> dict:
+        """Run JSON Web Token (JWT) security testing."""
+        await self.emit(scan.id, "module_start", "Starting JWT authentication and signature audit.",
+                       agent="JWTSecurityEngine", tool="jwt_signature_audit", target=target_url, state="EXECUTE")
+        scan.total_tests = (scan.total_tests or 0) + 3
+        try:
+            endpoints = ["/api/users/1/profile", "/api/admin/system-status", "/api/orders"]
+            async with httpx.AsyncClient(verify=False, timeout=8.0) as client:
+                raw_findings = await audit_jwt_security(client, target_url, endpoints)
+            return {"findings": [
+                {
+                    "status": "SUSPICIOUS", "confidence": 0.90,
+                    "title": f.get("title"), "category": f.get("type", "JWT_SECURITY"),
+                    "severity": f.get("severity", "HIGH"), "endpoint": f.get("endpoint", "/api/auth"),
+                    "description": f.get("description"), "evidence": f.get("evidence"),
+                    "finding_type": "CLASSICAL",
+                }
+                for f in raw_findings
+            ]}
+        except Exception as e:
+            await self.emit(scan.id, "module_error", f"JWT security tests failed: {e}", state="EXECUTE")
+            return {"findings": []}
+
+    async def _run_websocket_module(self, scan: Scan, scope: ScopeConfig, target_url: str) -> dict:
+        """Run Target WebSocket & CSWSH security tests."""
+        await self.emit(scan.id, "module_start", "Auditing target WebSocket endpoints and CSWSH defenses.",
+                       agent="WebSocketEngine", tool="websocket_audit", target=target_url, state="EXECUTE")
+        scan.total_tests = (scan.total_tests or 0) + 2
+        try:
+            async with httpx.AsyncClient(verify=False, timeout=6.0) as client:
+                raw_findings = await audit_websocket_security(target_url, client)
+            return {"findings": [
+                {
+                    "status": "SUSPICIOUS", "confidence": 0.85,
+                    "title": f.get("title"), "category": f.get("type", "WEBSOCKET_SECURITY"),
+                    "severity": f.get("severity", "HIGH"), "endpoint": f.get("endpoint", "/ws"),
+                    "description": f.get("description"), "evidence": f.get("evidence"),
+                    "finding_type": "CLASSICAL",
+                }
+                for f in raw_findings
+            ]}
+        except Exception as e:
+            await self.emit(scan.id, "module_error", f"WebSocket tests failed: {e}", state="EXECUTE")
             return {"findings": []}
 
     async def _run_quantum_module(self, scan: Scan, scope: ScopeConfig, target_url: str) -> dict:

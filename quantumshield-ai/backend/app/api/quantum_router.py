@@ -1,4 +1,5 @@
 """Quantum API router — Shor/Grover demos and quantum analysis."""
+from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -449,4 +450,65 @@ async def qkd_e91(request: E91Request):
         "final_key_hex": result.final_key_hex,
         "explanation": result.explanation,
     }
+
+
+class HybridTLSRequest(BaseModel):
+    target_url: str = "http://localhost:8080"
+    custom_port: Optional[int] = None
+
+
+class CBOMExportRequest(BaseModel):
+    target_name: str = "QuantumShield Testbed"
+    target_url: str = "http://localhost:8080"
+    crypto_assets: list[dict] = []
+
+
+@router.post("/hybrid-tls")
+async def assess_hybrid_tls_endpoint(request: HybridTLSRequest):
+    """Evaluate server TLS for X25519 + ML-KEM-768 hybrid key exchange support."""
+    from app.quantum.hybrid_tls import assess_hybrid_pqc_tls
+    return assess_hybrid_pqc_tls(request.target_url, request.custom_port)
+
+
+@router.post("/cbom/cyclonedx")
+async def export_cyclonedx_cbom_endpoint(request: CBOMExportRequest):
+    """Export standard CycloneDX v1.6 Cryptography Extension CBOM JSON document."""
+    from app.quantum.cbom_export import export_cyclonedx_cbom
+    assets = request.crypto_assets or [
+        {"algorithm": "RSA-2048", "key_size": 2048, "usage": "key_exchange", "quantum_vulnerable": True, "file_path": "security-lab/app/main.py"},
+        {"algorithm": "ECDSA-P256", "key_size": 256, "usage": "digital_signature", "quantum_vulnerable": True, "file_path": "backend/app/auth.py"},
+        {"algorithm": "AES-256-GCM", "key_size": 256, "usage": "data_encryption", "quantum_vulnerable": False, "file_path": "backend/app/database.py"},
+    ]
+    return export_cyclonedx_cbom(request.target_name, request.target_url, assets)
+
+
+@router.post("/cbom/spdx")
+async def export_spdx_cbom_endpoint(request: CBOMExportRequest):
+    """Export standard SPDX 3.0 Cryptography Profile JSON-LD document."""
+    from app.quantum.cbom_export import export_spdx_cbom
+    assets = request.crypto_assets or [
+        {"algorithm": "RSA-2048", "key_size": 2048, "usage": "key_exchange", "quantum_vulnerable": True, "file_path": "security-lab/app/main.py"},
+        {"algorithm": "ECDSA-P256", "key_size": 256, "usage": "digital_signature", "quantum_vulnerable": True, "file_path": "backend/app/auth.py"},
+    ]
+    return export_spdx_cbom(request.target_name, request.target_url, assets)
+
+
+@router.post("/cbom/json")
+async def export_json_cbom_endpoint(request: CBOMExportRequest):
+    """Export structured Cryptographic Bill of Materials JSON report."""
+    from app.quantum.pqc_assessment import assess_pqc_readiness
+    assets = request.crypto_assets or [
+        {"algorithm": "RSA-2048", "key_size": 2048, "usage": "key_exchange", "quantum_vulnerable": True},
+        {"algorithm": "ECDSA-P256", "key_size": 256, "usage": "digital_signature", "quantum_vulnerable": True},
+    ]
+    pqc = assess_pqc_readiness(assets)
+    return {
+        "target_name": request.target_name,
+        "target_url": request.target_url,
+        "generated_at": str(datetime.utcnow()),
+        "total_crypto_assets": len(assets),
+        "assets": assets,
+        "pqc_migration_assessment": pqc,
+    }
+
 
