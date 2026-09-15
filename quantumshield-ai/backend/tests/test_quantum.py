@@ -66,3 +66,77 @@ def test_pqc_readiness_assessment():
     assert pqc["total_algorithms_assessed"] == 3
     assert pqc["quantum_vulnerable_count"] >= 1
     assert 0 <= pqc["pqc_readiness_score"] <= 100
+
+
+def test_quantum_hardware_backends():
+    from app.quantum.quantum_hardware import list_available_backends
+    backends = list_available_backends()
+    assert len(backends) >= 3
+    assert any(b["name"] == "ibm_brisbane" for b in backends)
+    assert any(b["is_simulator"] is True for b in backends)
+
+
+def test_quantum_comparative_benchmark():
+    from app.quantum.quantum_hardware import run_comparative_shor
+    result = asyncio.run(run_comparative_shor(N=15, backend_name="ibm_brisbane", shots=1024))
+    assert result["N"] == 15
+    assert result["factors_found"] == (3, 5)
+    assert result["period_detected"] == 4
+    assert "ideal" in result["comparative_results"]
+    assert "noisy" in result["comparative_results"]
+    assert "real_qpu" in result["comparative_results"]
+    assert "quantum_security_interpretation" in result
+    assert "RSA-2048" in result["quantum_security_interpretation"]["threatened_algorithm"]
+
+
+def test_simon_algorithm():
+    from app.quantum.simon_demo import run_simon_demo
+    result = asyncio.run(run_simon_demo(hidden_string="11", shots=1024))
+    assert result.hidden_string_target == "11"
+    assert result.hidden_string_found == "11"
+    assert result.success is True
+    assert result.num_qubits == 4
+
+
+def test_qpe_primitive():
+    from app.quantum.qpe_demo import run_qpe_demo
+    result = asyncio.run(run_qpe_demo(phase_theta=0.25, precision_qubits=3, shots=1024))
+    assert result.target_phase_theta == 0.25
+    assert result.estimated_phase_theta == 0.25
+    assert result.phase_error == 0.0
+    assert result.most_probable_bitstring == "010"
+
+
+def test_qkd_bb84_secure_channel():
+    from app.quantum.qkd_sim import simulate_bb84
+    # Clean channel without Eve
+    result = simulate_bb84(num_photons=100, eve_present=False, channel_noise=0.01)
+    assert result.total_photons == 100
+    assert result.qber < 11.0
+    assert result.is_key_secure is True
+    assert result.status == "KEY_ESTABLISHED"
+    assert len(result.final_shared_key_hex) > 0
+
+
+def test_qkd_bb84_eavesdropper_detected():
+    from app.quantum.qkd_sim import simulate_bb84
+    # Channel with Eve intercepting 100% of photons
+    result = simulate_bb84(num_photons=120, eve_present=True, eve_intercept_prob=1.0, channel_noise=0.0)
+    assert result.qber >= 11.0
+    assert result.is_key_secure is False
+    assert result.status == "EAVESDROPPER_DETECTED_ABORT"
+
+
+def test_qkd_e91_bell_inequality():
+    from app.quantum.qkd_sim import simulate_e91
+    # Entangled without Eve -> S > 2.0
+    result = simulate_e91(num_pairs=200, eve_present=False)
+    assert result.chsh_correlation_s > 2.0
+    assert result.is_quantum_entangled is True
+    assert result.eavesdropper_detected is False
+
+    # Entangled with Eve -> S <= 2.0
+    result_eve = simulate_e91(num_pairs=200, eve_present=True)
+    assert result_eve.chsh_correlation_s <= 2.0
+    assert result_eve.is_quantum_entangled is False
+    assert result_eve.eavesdropper_detected is True

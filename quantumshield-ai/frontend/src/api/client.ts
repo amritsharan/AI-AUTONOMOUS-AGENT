@@ -64,6 +64,27 @@ export const quantumApi = {
   getPQCStandards: () => api.get('/api/quantum/pqc-standards').then(r => r.data),
   testPQCShield: (message: string, algorithm_mode: string) =>
     api.post('/api/quantum/pqc-shield-test', { message, algorithm_mode }).then(r => r.data),
+  getBackends: () => api.get('/api/quantum/backends').then(r => r.data),
+  setIbmToken: (token: string) => api.post('/api/quantum/set-ibm-token', { token }).then(r => r.data),
+  runHardwareJob: (data: {
+    algorithm?: string
+    N?: number
+    search_space_size?: number
+    marked_item?: number
+    mode: 'ideal' | 'noisy' | 'real_qpu'
+    backend_name: string
+    shots?: number
+  }) => api.post('/api/quantum/hardware-job', data).then(r => r.data),
+  compareModes: (N: number, backend_name: string, shots?: number) =>
+    api.post('/api/quantum/compare-modes', { N, backend_name, shots: shots || 4096 }).then(r => r.data),
+  simonDemo: (hiddenString: string = '101', shots?: number) =>
+    api.post('/api/quantum/simon-demo', { hidden_string: hiddenString, shots: shots || 1024 }).then(r => r.data),
+  qpeDemo: (phaseTheta: number = 0.375, precisionQubits: number = 4, shots?: number) =>
+    api.post('/api/quantum/qpe-demo', { phase_theta: phaseTheta, precision_qubits: precisionQubits, shots: shots || 2048 }).then(r => r.data),
+  qkdBB84: (numPhotons: number = 100, evePresent: boolean = false, eveInterceptProb: number = 1.0, channelNoise: number = 0.02) =>
+    api.post('/api/quantum/qkd-bb84', { num_photons: numPhotons, eve_present: evePresent, eve_intercept_prob: eveInterceptProb, channel_noise: channelNoise }).then(r => r.data),
+  qkdE91: (numPairs: number = 200, evePresent: boolean = false) =>
+    api.post('/api/quantum/qkd-e91', { num_pairs: numPairs, eve_present: evePresent }).then(r => r.data),
 }
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────

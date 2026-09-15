@@ -246,3 +246,207 @@ async def pqc_shield_test(request: PQCShieldTestRequest):
             "recommendation": "ADEQUATE — AES-256 provides 128 bits of remaining security against Grover search.",
         }
 
+
+# ─── Quantum Hardware Lab Endpoints ──────────────────────────────────────────
+
+class IBMTokenRequest(BaseModel):
+    token: str
+
+
+class HardwareJobRequest(BaseModel):
+    algorithm: str = "shor"  # "shor" | "grover"
+    N: int = 15  # For Shor: 15, 21, 35
+    search_space_size: int = 16  # For Grover
+    marked_item: int = 7  # For Grover
+    mode: str = "ideal"  # "ideal" | "noisy" | "real_qpu"
+    backend_name: str = "ibm_brisbane"
+    shots: int = 4096
+
+
+class ComparativeBenchmarkRequest(BaseModel):
+    N: int = 15
+    backend_name: str = "ibm_brisbane"
+    shots: int = 4096
+
+
+@router.get("/backends")
+async def get_quantum_backends():
+    """List all available quantum hardware QPUs, simulators, and live operational status."""
+    from app.quantum.quantum_hardware import list_available_backends, get_ibm_token
+    backends = list_available_backends()
+    return {
+        "backends": backends,
+        "has_ibm_token": bool(get_ibm_token()),
+    }
+
+
+@router.post("/set-ibm-token")
+async def set_ibm_quantum_token(request: IBMTokenRequest):
+    """Configure or update the IBM Quantum API access token."""
+    from app.quantum.quantum_hardware import set_ibm_token
+    success = set_ibm_token(request.token)
+    return {
+        "success": success,
+        "message": "IBM Quantum API token configured successfully." if success else "Token cleared.",
+        "has_ibm_token": success,
+    }
+
+
+@router.post("/hardware-job")
+async def run_hardware_job(request: HardwareJobRequest):
+    """Execute a quantum circuit job on Ideal Simulator, Noisy Simulator, or Real IBM QPU."""
+    from app.quantum.quantum_hardware import construct_shor_circuit, construct_grover_circuit, _execute_qiskit_circuit
+    if request.algorithm.lower() == "shor":
+        qc, num_qubits, depth = construct_shor_circuit(N=request.N, a=2)
+    else:
+        qc, num_qubits, depth = construct_grover_circuit(
+            search_space_size=request.search_space_size,
+            marked_item=request.marked_item
+        )
+
+    result = _execute_qiskit_circuit(
+        qc=qc,
+        mode=request.mode,
+        backend_name=request.backend_name,
+        shots=request.shots
+    )
+    return result
+
+
+@router.post("/compare-modes")
+async def compare_execution_modes(request: ComparativeBenchmarkRequest):
+    """
+    Execute small-integer Shor's Algorithm across Ideal Simulator vs Noisy Simulator vs Real QPU.
+    Returns side-by-side histograms, fidelity metrics, and Quantum Security Risk Interpretation.
+    """
+    from app.quantum.quantum_hardware import run_comparative_shor
+    result = await run_comparative_shor(
+        N=request.N,
+        backend_name=request.backend_name,
+        shots=request.shots
+    )
+    return result
+
+
+# ─── Phase 2 Quantum Security Algorithms ──────────────────────────────────────
+
+class SimonDemoRequest(BaseModel):
+    hidden_string: str = "101"
+    shots: int = 1024
+
+
+class QPEDemoRequest(BaseModel):
+    phase_theta: float = 0.375  # 3/8
+    precision_qubits: int = 4
+    shots: int = 2048
+
+
+class BB84Request(BaseModel):
+    num_photons: int = 100
+    eve_present: bool = False
+    eve_intercept_prob: float = 1.0
+    channel_noise: float = 0.02
+
+
+class E91Request(BaseModel):
+    num_pairs: int = 200
+    eve_present: bool = False
+
+
+@router.post("/simon-demo")
+async def simon_demo(request: SimonDemoRequest):
+    """Execute Simon's algorithm for exponential hidden period finding in symmetric cryptography."""
+    from app.quantum.simon_demo import run_simon_demo
+    result = await run_simon_demo(request.hidden_string, request.shots)
+    return {
+        "hidden_string_target": result.hidden_string_target,
+        "hidden_string_found": result.hidden_string_found,
+        "n_bits": result.n_bits,
+        "num_qubits": result.num_qubits,
+        "success": result.success,
+        "execution_time_ms": result.execution_time_ms,
+        "shots": result.shots,
+        "measurements": result.measurements,
+        "orthogonal_equations": result.orthogonal_equations,
+        "classical_complexity": result.classical_complexity,
+        "quantum_complexity": result.quantum_complexity,
+        "speedup_factor": result.speedup_factor,
+        "cryptographic_impact": result.cryptographic_impact,
+        "note": result.note,
+    }
+
+
+@router.post("/qpe-demo")
+async def qpe_demo(request: QPEDemoRequest):
+    """Execute Quantum Phase Estimation (QPE) primitive circuit."""
+    from app.quantum.qpe_demo import run_qpe_demo
+    result = await run_qpe_demo(request.phase_theta, request.precision_qubits, request.shots)
+    return {
+        "target_phase_theta": result.target_phase_theta,
+        "target_phase_fraction": result.target_phase_fraction,
+        "estimated_phase_theta": result.estimated_phase_theta,
+        "estimated_phase_fraction": result.estimated_phase_fraction,
+        "phase_error": result.phase_error,
+        "precision_qubits": result.precision_qubits,
+        "total_qubits": result.total_qubits,
+        "shots": result.shots,
+        "execution_time_ms": result.execution_time_ms,
+        "measurements": result.measurements,
+        "most_probable_bitstring": result.most_probable_bitstring,
+        "circuit_depth": result.circuit_depth,
+        "theoretical_explanation": result.theoretical_explanation,
+        "shor_connection": result.shor_connection,
+    }
+
+
+@router.post("/qkd-bb84")
+async def qkd_bb84(request: BB84Request):
+    """Simulate BB84 Quantum Key Distribution with Eve Intercept-Resend & QBER threshold test."""
+    from app.quantum.qkd_sim import simulate_bb84
+    result = simulate_bb84(
+        num_photons=request.num_photons,
+        eve_present=request.eve_present,
+        eve_intercept_prob=request.eve_intercept_prob,
+        channel_noise=request.channel_noise
+    )
+    return {
+        "total_photons": result.total_photons,
+        "raw_key_length": result.raw_key_length,
+        "sifted_key_length": result.sifted_key_length,
+        "final_key_length": result.final_key_length,
+        "alice_sample_bits": result.alice_sample_bits,
+        "alice_sample_bases": result.alice_sample_bases,
+        "bob_sample_bases": result.bob_sample_bases,
+        "bob_sample_bits": result.bob_sample_bits,
+        "eve_present": result.eve_present,
+        "eve_intercept_probability": result.eve_intercept_probability,
+        "channel_noise": result.channel_noise,
+        "qber": result.qber,
+        "qber_threshold": result.qber_threshold,
+        "is_key_secure": result.is_key_secure,
+        "status": result.status,
+        "final_shared_key_hex": result.final_shared_key_hex,
+        "explanation": result.explanation,
+    }
+
+
+@router.post("/qkd-e91")
+async def qkd_e91(request: E91Request):
+    """Simulate E91 Entanglement-based QKD with CHSH Bell Inequality verification."""
+    from app.quantum.qkd_sim import simulate_e91
+    result = simulate_e91(
+        num_pairs=request.num_pairs,
+        eve_present=request.eve_present
+    )
+    return {
+        "total_pairs": result.total_pairs,
+        "chsh_correlation_s": result.chsh_correlation_s,
+        "classical_limit": result.classical_limit,
+        "tsirelson_bound": result.tsirelson_bound,
+        "is_quantum_entangled": result.is_quantum_entangled,
+        "eavesdropper_detected": result.eavesdropper_detected,
+        "sifted_key_bits": result.sifted_key_bits,
+        "final_key_hex": result.final_key_hex,
+        "explanation": result.explanation,
+    }
+

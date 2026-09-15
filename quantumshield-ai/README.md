@@ -21,13 +21,16 @@ Targeting **explicitly authorized lab and staging environments**, QuantumShield 
   - Authorization & IDOR testing (cross-tenant object access verification).
   - Injection testing (SQLi, reflected XSS, template injection with benign payloads).
   - Security configuration & headers audit (CORS, cookies, debug exposure).
-- **Quantum Cryptographic Engine**:
-  - Cryptographic asset discovery & TLS cipher suite auditing.
-  - **Shor's Algorithm Threat Assessment**: Evaluates RSA, DH, ECDH, ECDSA vulnerability to polynomial-time period finding.
-  - **Shor's Algorithm Toy Simulation**: Live local Qiskit quantum circuit factoring (e.g. $N=15, 21, 35$) with quantum Fourier transforms (QFT).
-  - **Grover's Algorithm Threat Assessment**: Evaluates quadratic speedup attacks on AES, ChaCha, SHA-2/3.
-  - **Grover's Algorithm Toy Simulation**: Live local Qiskit quantum amplitude amplification demonstrating quadratic search speedup.
-  - **NIST Post-Quantum Cryptography (PQC) Readiness**: Migration roadmap to ML-KEM (FIPS 203), ML-DSA (FIPS 204), and SLH-DSA (FIPS 205).
+- **Quantum Cryptographic & Hardware Lab Engine**:
+  - **IBM Quantum Runtime & Real QPU Execution**: Live IBM Quantum Cloud authentication and QPU execution (`ibm_brisbane`, `ibm_kyoto`, `ibm_sherbrooke` 127-qubit processors) via Qiskit Runtime `SamplerV2`.
+  - **3-Tier Comparative Benchmark**: Side-by-side execution across **Ideal Simulator**, **Thermal/Decoherence Noisy Simulator**, and **Real Physical QPU**.
+  - **Hardware Telemetry HUD**: Live reporting on T1 relaxation, T2 dephasing, 2-qubit ECR gate error rates, and readout accuracy.
+  - **Shor's Algorithm & Factorization**: Factoring $N=15, 21, 35$ with period extraction ($r=4$) linked directly to **RSA-2048 HNDL risk** and **NIST FIPS 203 ML-KEM** migration.
+  - **Simon's Algorithm**: Exponential quantum period finding ($O(2^{n/2}) \rightarrow O(n)$) targeting Even-Mansour ciphers and GCM tag generation.
+  - **Quantum Phase Estimation (QPE) Primitive**: Interactive eigenvalue estimation for unitary $U|\psi\rangle = e^{2\pi i \theta}|\psi\rangle$ with Inverse QFT.
+  - **Quantum Key Distribution (QKD) Station**: BB84 single-photon polarization with Eve Intercept-Resend / QBER threshold testing, plus E91 Bell State entanglement testing (CHSH $S > 2.0$).
+  - **Grover's Algorithm**: Search space key exhaustion demonstrating quadratic speedup on symmetric key sizes (AES-128 vs AES-256).
+  - **NIST Post-Quantum Cryptography (PQC) Readiness**: Automated CBOM (Cryptographic Bill of Materials) and migration roadmaps for ML-KEM (FIPS 203), ML-DSA (FIPS 204), and SLH-DSA (FIPS 205).
 
 ### 2. Strictly Deterministic Policy Engine
 - **LLM-independent boundary control**: Every security test and outbound payload must pass algorithmic allow-list checks.
