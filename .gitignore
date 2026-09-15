@@ -37,6 +37,9 @@ yarn-error.log*
 .env.local
 .env.*.local
 *.log
+*.db
+*.sqlite
+*.sqlite3
 
 # OS
 .DS_Store

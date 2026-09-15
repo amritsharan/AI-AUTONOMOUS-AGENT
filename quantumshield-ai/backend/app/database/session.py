@@ -4,12 +4,7 @@ import importlib.util
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    if importlib.util.find_spec("asyncpg") is not None:
-        DATABASE_URL = "postgresql+asyncpg://quantumshield:quantumshield_secret@localhost:5432/quantumshield"
-    else:
-        DATABASE_URL = "sqlite+aiosqlite:///./quantumshield.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./quantumshield.db")
 
 engine_kwargs = {
     "echo": False,

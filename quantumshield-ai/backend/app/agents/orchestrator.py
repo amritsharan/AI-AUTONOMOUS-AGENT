@@ -133,12 +133,14 @@ class ScanOrchestrator:
 
             # Store endpoints in DB
             for api in recon_result.apis[:50]:  # Cap at 50
+                auth_req = api.get("auth_required", False)
+                auth_bool = bool(auth_req) if isinstance(auth_req, bool) else (str(auth_req).lower() in ("true", "1", "yes", "post only", "required"))
                 ep = Endpoint(
                     scan_id=scan_id,
                     path=api.get("path", "/"),
                     method=api.get("methods", ["GET"])[0],
-                    auth_required=api.get("auth_required", False),
-                    notes=api.get("notes", ""),
+                    auth_required=auth_bool,
+                    notes=str(api.get("notes", "")),
                 )
                 self.db.add(ep)
 
