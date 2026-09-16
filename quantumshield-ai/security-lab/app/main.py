@@ -560,16 +560,113 @@ def upload_file():
     return jsonify({"message": "Uploaded", "filename": filename, "path": filepath})  # VULN: Exposes server path
 
 @app.route("/api/download/<path:filename>")
-@token_required
 def download_file(filename):
     # VULN: Path traversal - no sanitization of filename
-    # VULN: No ownership check - any user can download any file
+    # Returns simulated system file if traversal requested
+    if ".." in filename or "passwd" in filename:
+        mock_passwd = (
+            "root:x:0:0:root:/root:/bin/bash\n"
+            "daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n"
+            "bin:x:2:2:bin:/bin:/usr/sbin/nologin\n"
+            "sys:x:3:3:sys:/dev:/usr/sbin/nologin\n"
+            "alice:x:1000:1000:Alice User:/home/alice:/bin/bash\n"
+            "bob:x:1001:1001:Bob User:/home/bob:/bin/bash\n"
+            "admin:x:1002:1002:Administrator:/home/admin:/bin/bash\n"
+            "quantum_svc:x:1003:1003:Quantum Shield Service:/var/run/quantum:/bin/sh\n"
+        )
+        return mock_passwd, 200, {"Content-Type": "text/plain; charset=utf-8"}
+
+    if "env" in filename or ".env" in filename:
+        mock_env = (
+            "SECRET_KEY=weak-lab-secret-123\n"
+            "ADMIN_TOKEN=sk-admin-live-99201a884f2910\n"
+            "DATABASE_URL=sqlite:///tmp/lab.db\n"
+            "AWS_ACCESS_KEY_ID=ASIAEXAMPLESECRET9901\n"
+            "AWS_SECRET_ACCESS_KEY=d98124u1092jf09j12f/secret\n"
+        )
+        return mock_env, 200, {"Content-Type": "text/plain; charset=utf-8"}
+
     filepath = os.path.join(UPLOAD_DIR, filename)
     if os.path.exists(filepath):
         with open(filepath, "rb") as f:
             content = f.read()
         return content, 200
-    return jsonify({"error": "File not found"}), 404
+    return jsonify({"error": "File not found", "attempted_path": filepath}), 404
+
+# ─── OS Command Injection / Diagnostic Probe (Claude-Red RCE Vector) ─────────
+
+@app.route("/api/tools/ping", methods=["GET", "POST"])
+def tools_ping():
+    """VULN: OS Command Injection / RCE via un-sanitized diagnostic tool execution."""
+    data = request.get_json() if request.is_json else request.args
+    target = data.get("host") or data.get("ip") or data.get("target") or "127.0.0.1"
+
+    # Simulated injection response if command chaining characters are passed
+    if any(sep in target for sep in [";", "|", "&", "`", "$", "\n", "whoami", "uname", "id"]):
+        simulated_output = (
+            f"PING {target.split(';')[0].strip()} (127.0.0.1) 56(84) bytes of data.\n"
+            f"64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.034 ms\n\n"
+            f"--- Command Execution Output (uid=0[root]) ---\n"
+            f"uid=0(root) gid=0(root) groups=0(root)\n"
+            f"Linux quantum-sec-lab 6.6.0-quantum #1 SMP PREEMPT_DYNAMIC x86_64 GNU/Linux\n"
+            f"/app/security-lab\n"
+            f"drwxr-xr-x 4 root root 4096 Sep 16 12:00 .\n"
+            f"-rw-r--r-- 1 root root 1204 Sep 16 12:00 app/main.py\n"
+            f"-rw------- 1 root root  420 Sep 16 12:00 /etc/shadow.bak\n"
+        )
+        return jsonify({
+            "command": f"ping -c 1 {target}",
+            "executed": True,
+            "status": "vulnerable",
+            "stdout": simulated_output,
+            "elevated_privileges": True,
+        })
+
+    return jsonify({
+        "command": f"ping -c 1 {target}",
+        "stdout": f"PING {target} (127.0.0.1): 56 data bytes\n64 bytes from 127.0.0.1: icmp_seq=0 ttl=64 time=0.041 ms\n1 packets transmitted, 1 received, 0% packet loss",
+        "status": "success",
+    })
+
+# ─── Server-Side Request Forgery (SSRF - Claude-Red Cloud IMDS Vector) ───────
+
+@app.route("/api/ssrf/proxy", methods=["GET"])
+def ssrf_proxy():
+    """VULN: Server-Side Request Forgery (SSRF) allowing internal network & IMDS exfiltration."""
+    url = request.args.get("url", "")
+    if not url:
+        return jsonify({"error": "Missing 'url' parameter"}), 400
+
+    # Simulate cloud metadata service (AWS/GCP/Azure IMDS)
+    if "169.254.169.254" in url or "metadata.google.internal" in url:
+        return jsonify({
+            "service": "AWS Instance Metadata Service (IMDSv1)",
+            "RoleName": "QuantumShield-Production-EC2Role",
+            "AccessKeyId": "ASIAVULNERABLELAB77291",
+            "SecretAccessKey": "99u8A01j2mZp018KkLa+ExampleSecretAWSKey/ClaudeRed",
+            "Token": "IQoJb3JpZ2luX2VjEEXAMPLE...ClaudeRedHarvestedToken...",
+            "Expiration": (datetime.utcnow() + timedelta(hours=12)).isoformat(),
+            "AccountId": "112233445566",
+            "InstanceId": "i-099a8b7c6d5e4f3a2",
+            "SecurityGroups": ["sg-quantum-default", "sg-production-database"],
+        })
+
+    if "localhost" in url or "127.0.0.1" in url:
+        return jsonify({
+            "service": "Internal Loopback Service",
+            "status": "internal_administrative_interface",
+            "active_nodes": ["master-cluster-01", "worker-node-02"],
+            "redis_cache": "redis://127.0.0.1:6379 (auth: none)",
+            "internal_metrics": {"cpu_load": 0.18, "memory_mb": 512},
+        })
+
+    return jsonify({
+        "fetched_url": url,
+        "status_code": 200,
+        "content_length": 142,
+        "headers": {"Server": "Internal-Proxy/1.0"},
+        "data": f"Proxied content from {url}",
+    })
 
 # ─── User Profile (IDOR + Mass Assignment) ───────────────────────────────────
 
@@ -735,7 +832,9 @@ def sitemap():
             {"path": "/search", "methods": ["GET"], "auth": False, "vuln": "Reflected XSS"},
             {"path": "/api/messages", "methods": ["GET", "POST"], "auth": "POST only"},
             {"path": "/api/upload", "methods": ["POST"], "auth": True, "vuln": "Path Traversal"},
-            {"path": "/api/download/<filename>", "methods": ["GET"], "auth": True, "vuln": "Path Traversal"},
+            {"path": "/api/download/<filename>", "methods": ["GET"], "auth": False, "vuln": "Path Traversal"},
+            {"path": "/api/tools/ping", "methods": ["GET", "POST"], "auth": False, "vuln": "OS Command Injection / RCE"},
+            {"path": "/api/ssrf/proxy", "methods": ["GET"], "auth": False, "vuln": "Server-Side Request Forgery / Cloud IMDS"},
             {"path": "/api/users/<id>", "methods": ["GET", "PUT"], "auth": True, "vuln": "IDOR+MassAssignment"},
             {"path": "/api/crypto/config", "methods": ["GET"], "auth": False, "vuln": "Info Disclosure"},
             {"path": "/api/crypto/rsa-demo", "methods": ["GET"], "auth": False},
@@ -768,6 +867,10 @@ def known_vulnerabilities():
             {"id": "VULN-012", "type": "USERNAME_ENUMERATION", "severity": "LOW", "endpoint": "/api/auth/login"},
             {"id": "VULN-013", "type": "MASS_ASSIGNMENT", "severity": "HIGH", "endpoint": "/api/users/<id>"},
             {"id": "VULN-014", "type": "NO_RATE_LIMITING", "severity": "MEDIUM", "endpoint": "/api/auth/login"},
+            {"id": "VULN-015", "type": "COMMAND_INJECTION", "severity": "CRITICAL", "endpoint": "/api/tools/ping"},
+            {"id": "VULN-016", "type": "SSRF_IMDS", "severity": "CRITICAL", "endpoint": "/api/ssrf/proxy"},
+            {"id": "VULN-017", "type": "PATH_TRAVERSAL", "severity": "HIGH", "endpoint": "/api/download/<filename>"},
+            {"id": "VULN-018", "type": "STORED_XSS", "severity": "HIGH", "endpoint": "/api/messages"},
         ]
     })
 
@@ -777,3 +880,4 @@ init_db()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080, debug=False)
+
